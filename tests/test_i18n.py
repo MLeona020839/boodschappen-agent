@@ -25,3 +25,11 @@ def test_translator_formats_and_falls_back_to_english():
 def test_dollar_signs_are_escaped_for_markdown():
     text = translator("en")("using_shared_key", spent=0.5, budget=1)
     assert "\\$0.50" in text and "\\$1.00" in text
+
+
+def test_settings_strip_pasted_whitespace(monkeypatch):
+    from grocery_agent import settings
+    monkeypatch.setenv("SOME_KEY", "  sk-ant-abc\n")
+    assert settings.get("SOME_KEY") == "sk-ant-abc"
+    monkeypatch.setenv("SOME_KEY", "   ")
+    assert settings.get("SOME_KEY", "fallback") == "fallback"

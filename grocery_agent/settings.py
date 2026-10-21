@@ -15,13 +15,18 @@ import os
 
 
 def get(name: str, default: str | None = None) -> str | None:
+    value = None
     try:
         import streamlit as st
         if name in st.secrets:
-            return str(st.secrets[name])
+            value = str(st.secrets[name])
     except Exception:  # not running under Streamlit, or no secrets.toml
         pass
-    return os.environ.get(name, default)
+    if value is None:
+        value = os.environ.get(name)
+    # Pasted secrets often carry stray spaces or newlines, which silently break API keys.
+    value = value.strip() if value is not None else None
+    return value or default
 
 
 def flag(name: str) -> bool:

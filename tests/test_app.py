@@ -85,7 +85,7 @@ def test_empty_submit_explains():
 
 
 def test_access_code_unlocks_shared_key():
-    secrets = dict(SHARED_DEPLOYMENT="true", ANTHROPIC_API_KEY="sk-ant-server", ACCESS_CODE="pizza")
+    secrets = dict(SHARED_DEPLOYMENT="true", ANTHROPIC_API_KEY="sk-ant-good-server", ACCESS_CODE="pizza")
     at = submit_gate(run(**secrets), code="wrong")
     assert not unlocked(at) and "not right" in texts(at)
     at = submit_gate(at, code="pizza")
@@ -176,3 +176,17 @@ def test_dutch_via_url():
 def test_unknown_language_in_url_falls_back_to_english():
     at = run(query={"lang": "zh"}, SHARED_DEPLOYMENT="true")  # not an option label
     assert not at.exception and at.title[0].value == EN_TITLE
+
+
+def test_rejected_shared_key_is_explained():
+    # check_key (patched above) rejects anything not starting with "sk-ant-good"
+    at = run(SHARED_DEPLOYMENT="true", ANTHROPIC_API_KEY="sk-ant-revoked", ACCESS_CODE="pizza")
+    at = submit_gate(at, code="pizza")
+    assert unlocked(at)
+    assert any("shared API key was rejected" in e.value for e in at.error)
+
+
+def test_working_shared_key_shows_budget():
+    at = run(SHARED_DEPLOYMENT="true", ANTHROPIC_API_KEY="sk-ant-good-server", ACCESS_CODE="pizza")
+    at = submit_gate(at, code="pizza")
+    assert "shared key" in texts(at) and not at.error

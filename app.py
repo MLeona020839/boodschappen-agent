@@ -121,6 +121,12 @@ except Exception as e:  # download failed and no local copy
 client, key_mode = current_client()
 
 
+@st.cache_data(ttl=timedelta(hours=1), show_spinner=False)
+def shared_key_works(key: str) -> bool | None:
+    """Check the server's key once an hour, so a wrong secret shows up before anyone asks."""
+    return agent_mod.check_key(key)
+
+
 # ---------------------------------------------------------------- gate: access code or own key
 
 if client is None:
@@ -172,6 +178,8 @@ with panel:
     status_box = st.container(horizontal=True, vertical_alignment="center")
     if key_mode == "own":
         status_box.success(t("using_own_key"), icon=":material/key:")
+    elif shared_key_works(SERVER_KEY) is False:
+        status_box.error(t("shared_key_rejected"), icon=":material/key_off:")
     elif SHARED or ACCESS_CODE:
         status_box.info(t("using_shared_key", spent=session_cost(), budget=BUDGET), icon=":material/group:")
     if not OPEN_SERVER_KEY and status_box.button(t("change_key"), type="tertiary", key="change_key"):
@@ -233,7 +241,7 @@ with panel:
                         ss.import_cost += (res.input_tokens * PRICE["input"]
                                            + res.output_tokens * PRICE["output"]) / 1_000_000
                     except anthropic.AuthenticationError:
-                        st.error(t("import_bad_key"))
+                        st.error(t("import_bad_key") if key_mode == "own" else t("shared_key_rejected"))
                     except Exception as e:  # show any failure in the panel, keep the app alive
                         st.error(t("import_failed", error=e))
                 if ss.import_result:
@@ -342,7 +350,7 @@ with chat_col:
                     del agent.messages[checkpoint:]  # drop the half-finished turn
                     status.update(label=t("error"), state="error")
                     if isinstance(e, anthropic.AuthenticationError):
-                        answer = t("err_auth")
+                        answer = t("err_auth") if key_mode == "own" else t("shared_key_rejected")
                     elif isinstance(e, anthropic.RateLimitError):
                         answer = t("err_rate")
                     elif isinstance(e, anthropic.APIStatusError):

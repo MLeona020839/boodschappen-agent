@@ -5,6 +5,7 @@ LANGUAGES = {"en": "English", "nl": "Nederlands", "zh": "中文"}
 
 TEXT: dict[str, dict[str, str]] = {
     "en": {
+        "shared_key_rejected": "The shared API key was rejected by Anthropic. If you run this app, check ANTHROPIC_API_KEY in the app's Secrets. Otherwise, click “Change key” and use your own key.",
         "gate_title": "Get started",
         "gate_body": "Tell it what you want to eat and your budget. It checks prices at 10 Dutch supermarkets and gives you a meal plan, a shopping list, and which store (or which two) is cheapest.",
         "gate_code": "Access code",
@@ -93,6 +94,7 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Forgetting: {note}",
     },
     "nl": {
+        "shared_key_rejected": "De gedeelde API-sleutel werd door Anthropic geweigerd. Beheer je deze app? Controleer dan ANTHROPIC_API_KEY in de Secrets van de app. Anders: klik op „Andere sleutel” en gebruik je eigen sleutel.",
         "gate_title": "Aan de slag",
         "gate_body": "Vertel wat je wilt eten en wat je budget is. De agent vergelijkt de prijzen bij 10 Nederlandse supermarkten en geeft je een weekmenu, een boodschappenlijst en de goedkoopste winkel (of combinatie van twee).",
         "gate_code": "Toegangscode",
@@ -174,6 +176,7 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Vergeten: {note}",
     },
     "zh": {
+        "shared_key_rejected": "共享的 API key 被 Anthropic 拒绝了。如果你是这个网站的管理者，请检查应用 Secrets 里的 ANTHROPIC_API_KEY；否则请点「更换 key」，改用你自己的 key。",
         "gate_title": "开始使用",
         "gate_body": "告诉它你想吃什么、预算多少，它会查 10 家荷兰超市的价格，给出菜单、购物清单，以及去哪家（或哪两家）买最便宜。",
         "gate_code": "邀请码",
