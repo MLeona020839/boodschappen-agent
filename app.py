@@ -114,10 +114,10 @@ except Exception as e:  # download failed and no local copy
 with st.sidebar:
     st.header("🛒 Boodschappen Agent")
 
-    st.subheader("API key")
+    st.subheader(t("api_key_header"))
     local_key_only = SERVER_KEY and not ACCESS_CODE and not SHARED
     with st.expander(t("own_key_expander"), expanded=not local_key_only):
-        st.text_input("Anthropic API key", type="password", key="user_key",
+        st.text_input(t("api_key_label"), type="password", key="user_key",
                       placeholder="sk-ant-...",
                       help=t("key_help"))
         if SERVER_KEY and ACCESS_CODE and not ss.access_ok:

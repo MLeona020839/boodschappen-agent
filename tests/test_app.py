@@ -115,3 +115,9 @@ def test_unknown_language_in_url_falls_back_to_english():
     at = run(query={"lang": "zh"}, SHARED_DEPLOYMENT="true")  # not an option label
     assert not at.exception
     assert at.title[0].value == EN_TITLE
+
+
+def test_dutch_via_url():
+    at = run(query={"lang": "Nederlands"}, SHARED_DEPLOYMENT="true")
+    assert at.title[0].value == "Wat eten we, en waar is het het goedkoopst?"
+    assert "Vul je API-sleutel in" in sidebar_text(at)

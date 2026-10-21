@@ -21,7 +21,7 @@ cheapest across 10 Dutch supermarkets (AH, Jumbo, Lidl, Plus, Dirk and more, abo
   1+1 gratis, "2 voor €5", 25% korting, 2e halve prijs and plain price cuts.
 - **Remembers preferences**: household size, dislikes, favourite stores.
 - **Shareable**: friends use their own API key, or yours behind an access code with a per-session spend cap.
-- **English or Chinese UI** (switch in the sidebar, or link to `?lang=中文`); the agent replies in whatever language you write.
+- **English, Dutch or Chinese UI** (switch in the sidebar, or link to `?lang=Nederlands` / `?lang=中文`); the agent replies in whatever language you write.
 
 ## How it works
 
@@ -60,7 +60,7 @@ the model calls as a tool. The model never adds up prices itself.
 
 ## Testing
 
-68 tests (`pytest -q`):
+73 tests (`pytest -q`):
 
 - unit-size parsing, knapsack and promotion pricing, single/two-store comparison
 - database build, search ranking, and id stability across refreshes

@@ -1,10 +1,12 @@
-"""UI strings in English and Chinese. The agent itself answers in whatever language the user writes."""
+"""UI strings in English, Dutch and Chinese. The agent itself answers in whatever language the user writes."""
 from __future__ import annotations
 
-LANGUAGES = {"en": "English", "zh": "中文"}
+LANGUAGES = {"en": "English", "nl": "Nederlands", "zh": "中文"}
 
 TEXT: dict[str, dict[str, str]] = {
     "en": {
+        "api_key_header": "API key",
+        "api_key_label": "Anthropic API key",
         "title": "What's for dinner, and where is it cheapest?",
         "language": "Language",
         # API key
@@ -87,7 +89,87 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_remember": "💾 Remembering: {note}",
         "tool_forget": "🗑️ Forgetting: {note}",
     },
+    "nl": {
+        "api_key_header": "API-sleutel",
+        "api_key_label": "Anthropic API-sleutel",
+        "title": "Wat eten we, en waar is het het goedkoopst?",
+        "language": "Taal",
+        "own_key_expander": "Je eigen API-sleutel gebruiken",
+        "key_help": "Wordt alleen in dit browsertabblad bewaard: nooit opgeslagen en voor niemand anders zichtbaar. "
+                    "Maak er een aan onder API Keys op console.anthropic.com.",
+        "access_code": "Of vul een toegangscode in om de gedeelde sleutel te gebruiken",
+        "access_wrong": "Die toegangscode klopt niet.",
+        "using_own_key": "Je gebruikt je eigen sleutel",
+        "using_shared_key": "Je gebruikt de gedeelde sleutel · deze sessie ${spent:.2f} / ${budget:.2f}",
+        "using_local_key": "ANTHROPIC_API_KEY van deze computer wordt gebruikt",
+        "need_key": "Vul je API-sleutel in om te beginnen.",
+        "need_key_or_code": "Vul je API-sleutel of een toegangscode in om te beginnen.",
+        "prices": "Prijzen",
+        "prices_caption": "Gegevens van {date} · {stores} supermarkten · {products:,} producten · dagelijks bijgewerkt",
+        "prices_update": "⬇️ Prijzen nu bijwerken",
+        "prices_updating": "Downloaden en indexeren (ongeveer 20 seconden)…",
+        "prices_loading": "De nieuwste prijzen worden gedownload (de eerste keer ongeveer 20 seconden)…",
+        "prices_failed": "De prijsgegevens konden niet worden geladen: {error}",
+        "promos": "Aanbiedingen van deze week",
+        "promo_line": "{label} · {n} producten · t/m {until}",
+        "promo_delete": "Deze aanbieding verwijderen",
+        "promos_none": "Nog geen aanbiedingen geïmporteerd, dus er wordt met normale prijzen gerekend.",
+        "promos_import": "➕ Aanbiedingen importeren",
+        "store": "Supermarkt",
+        "valid": "Geldig",
+        "files": "Screenshots, foto's of pdf van de folder",
+        "paste": "Of plak de tekst van een aanbiedingenpagina",
+        "paste_placeholder": "bijv. gekopieerd van ah.nl/bonus",
+        "promos_shared_note": "Geïmporteerde aanbiedingen zijn voor iedereen zichtbaar en worden door iedereen gebruikt.",
+        "import_button": "Lezen en importeren",
+        "importing": "Claude leest de aanbiedingen en zoekt de bijbehorende producten…",
+        "import_bad_key": "De API-sleutel is ongeldig. Controleer hem.",
+        "import_failed": "Importeren mislukt: {error}",
+        "imported": "{n} aanbiedingen geïmporteerd",
+        "unmatched": "Geen bijbehorende producten gevonden voor: {items}",
+        "promos_cleanup": "Verlopen aanbiedingen verwijderen",
+        "promos_removed": "{n} verlopen aanbiedingen verwijderd",
+        "prefs": "Mijn voorkeuren",
+        "prefs_session_note": "Alleen bewaard in dit browsertabblad; weg na het herladen.",
+        "prefs_add": "Voorkeur toevoegen",
+        "prefs_placeholder": "bijv. geen varkensvlees",
+        "prefs_add_button": "Toevoegen",
+        "usage": "Kosten deze sessie",
+        "usage_caption": "≈ ${cost:.3f} · invoer {inp:,} / uitvoer {out:,} tokens",
+        "new_chat": "🆕 Nieuw gesprek",
+        "intro_title": "Zo werkt het",
+        "intro_body": "Vertel wat je wilt eten en wat je budget is. De agent vergelijkt de prijzen bij 10 "
+                      "Nederlandse supermarkten en geeft je een weekmenu, een boodschappenlijst en de "
+                      "goedkoopste winkel (of combinatie van twee).\n\n"
+                      "**Voordat je begint**: open de zijbalk (op je telefoon: tik linksboven op **»**). {how_key} "
+                      "Een sleutel maak je aan op [console.anthropic.com](https://console.anthropic.com), "
+                      "nadat je je hebt aangemeld en tegoed hebt toegevoegd. De kosten gaan van je eigen account af; "
+                      "een week avondeten plannen kost ongeveer $0,10–0,50.",
+        "intro_with_code": "Heb je een toegangscode gekregen? Vul die dan in. Anders vul je je eigen Anthropic API-sleutel in.",
+        "intro_own_key": "Vul je Anthropic API-sleutel in.",
+        "over_budget": "Het budget van de gedeelde sleutel voor deze sessie (${budget:.2f}) is op. "
+                       "Je kunt verder door je eigen API-sleutel in de zijbalk in te vullen.",
+        "steps": "Zo kwam ik erop ({n} stappen)",
+        "chat_placeholder": "Vraag het in het Nederlands, Engels, Chinees…",
+        "thinking": "Even nadenken…",
+        "working": "Prijzen vergelijken… ({n} stappen)",
+        "done": "Klaar ({n} stappen)",
+        "error": "Er ging iets mis",
+        "err_auth": "De API-sleutel is ongeldig. Controleer hem in de zijbalk.",
+        "err_rate": "Te veel verzoeken. Wacht even en probeer het opnieuw.",
+        "err_status": "API-fout ({code}): {message}",
+        "err_conn": "Kan de API niet bereiken. Controleer je internetverbinding.",
+        "tool_search": "🔍 Zoeken naar **{query}** ({stores})",
+        "tool_all_stores": "alle winkels",
+        "tool_basket": "🧮 Boodschappenmand berekenen: {items}",
+        "tool_promos": "🏷️ Aanbiedingen van deze week bekijken",
+        "tool_stores": "🏪 Supermarkten opvragen",
+        "tool_remember": "💾 Onthouden: {note}",
+        "tool_forget": "🗑️ Vergeten: {note}",
+    },
     "zh": {
+        "api_key_header": "API key",
+        "api_key_label": "Anthropic API key",
         "title": "这周吃什么，去哪买最便宜？",
         "language": "语言",
         "own_key_expander": "使用自己的 API key",
@@ -169,6 +251,12 @@ EXAMPLES = {
         "Plan 4 dinners this week, €35 budget, something Asian",
         "Chicken breast, eggs, milk, bananas: where is it cheapest?",
         "Which AH promotions this week are good for dinner?",
+    ],
+    "nl": [
+        "We zijn met z'n tweeën, doen meestal boodschappen bij AH en Lidl, geen koriander",
+        "Plan 4 avondmaaltijden voor deze week, budget €35, iets Aziatisch",
+        "Kipfilet, eieren, melk en bananen: waar is het het goedkoopst?",
+        "Welke AH-aanbiedingen van deze week zijn handig voor het avondeten?",
     ],
     "zh": [
         "我们家两个人，平时去 AH 和 Lidl，不吃香菜",
