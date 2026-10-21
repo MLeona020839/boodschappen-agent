@@ -5,6 +5,9 @@ LANGUAGES = {"en": "English", "nl": "Nederlands", "zh": "中文"}
 
 TEXT: dict[str, dict[str, str]] = {
     "en": {
+        "import_needs_key": "↑ Enter your API key at the top of the sidebar first.",
+        "import_needs_key_or_code": "↑ Enter an API key or access code at the top of the sidebar first.",
+        "import_needs_input": "Add screenshots or paste text to import.",
         "promos_unavailable": "The promotions database can't be reached right now, so regular prices are used. If it is a free Supabase project, it may be paused: restore it in the Supabase dashboard.",
         "api_key_header": "API key",
         "api_key_label": "Anthropic API key",
@@ -91,6 +94,9 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Forgetting: {note}",
     },
     "nl": {
+        "import_needs_key": "↑ Vul eerst bovenaan de zijbalk je API-sleutel in.",
+        "import_needs_key_or_code": "↑ Vul eerst bovenaan de zijbalk een API-sleutel of toegangscode in.",
+        "import_needs_input": "Voeg screenshots toe of plak tekst om te importeren.",
         "promos_unavailable": "De aanbiedingendatabase is nu niet bereikbaar, dus er wordt met normale prijzen gerekend. Is het een gratis Supabase-project, dan is het misschien gepauzeerd: herstel het in het Supabase-dashboard.",
         "api_key_header": "API-sleutel",
         "api_key_label": "Anthropic API-sleutel",
@@ -170,6 +176,9 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Vergeten: {note}",
     },
     "zh": {
+        "import_needs_key": "↑ 请先在侧边栏最上方填写你的 API key。",
+        "import_needs_key_or_code": "↑ 请先在侧边栏最上方填写 API key 或邀请码。",
+        "import_needs_input": "上传截图或粘贴文字后即可导入。",
         "promos_unavailable": "现在连不上折扣数据库，暂时按常规价格比价。如果用的是免费的 Supabase 项目，可能是被暂停了，请到 Supabase 控制台里恢复。",
         "api_key_header": "API key",
         "api_key_label": "Anthropic API key",

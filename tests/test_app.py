@@ -130,3 +130,17 @@ def test_import_dates_follow_the_store_week():
     assert at.sidebar.date_input(key="valid-jumbo").value == promos.promo_week("jumbo")
     at.sidebar.selectbox[0].select("ah").run()
     assert at.sidebar.date_input(key="valid-ah").value == promos.promo_week("ah")
+
+
+def test_import_explains_why_it_is_disabled():
+    at = run(SHARED_DEPLOYMENT="true")
+    assert any("Enter your API key at the top" in c.value for c in at.sidebar.caption)
+    at.sidebar.text_input(key="user_key").input("sk-ant-mine").run()
+    captions = [c.value for c in at.sidebar.caption]
+    assert not any("at the top of the sidebar" in c for c in captions)
+    assert any("screenshots or paste text" in c for c in captions)
+
+
+def test_import_hint_mentions_access_code_only_when_configured():
+    at = run(SHARED_DEPLOYMENT="true", ANTHROPIC_API_KEY="sk-ant-server", ACCESS_CODE="pizza")
+    assert any("API key or access code" in c.value for c in at.sidebar.caption)

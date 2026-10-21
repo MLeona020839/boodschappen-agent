@@ -180,6 +180,12 @@ with st.sidebar:
         text = st.text_area(t("paste"), height=100, placeholder=t("paste_placeholder"))
         if SHARED:
             st.caption(t("promos_shared_note"))
+        # Say why the button is disabled instead of leaving people guessing.
+        if not can_call:
+            st.caption(t("import_needs_key_or_code") if SERVER_KEY and ACCESS_CODE
+                       else t("import_needs_key"))
+        elif not (files or text.strip()):
+            st.caption(t("import_needs_input"))
         if st.button(t("import_button"), type="primary",
                      disabled=engine is None or not can_call or not (files or text.strip()),
                      width="stretch"):
