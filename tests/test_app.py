@@ -121,3 +121,12 @@ def test_dutch_via_url():
     at = run(query={"lang": "Nederlands"}, SHARED_DEPLOYMENT="true")
     assert at.title[0].value == "Wat eten we, en waar is het het goedkoopst?"
     assert "Vul je API-sleutel in" in sidebar_text(at)
+
+
+def test_import_dates_follow_the_store_week():
+    from grocery_agent import promos
+    at = run(SHARED_DEPLOYMENT="true")
+    at.sidebar.selectbox[0].select("jumbo").run()
+    assert at.sidebar.date_input(key="valid-jumbo").value == promos.promo_week("jumbo")
+    at.sidebar.selectbox[0].select("ah").run()
+    assert at.sidebar.date_input(key="valid-ah").value == promos.promo_week("ah")

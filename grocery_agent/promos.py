@@ -19,7 +19,7 @@ from __future__ import annotations
 import base64
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal, Optional
 
 import sqlalchemy as sa
@@ -55,6 +55,20 @@ promotion_products = sa.Table(
               primary_key=True),
     sa.Column("product_id", sa.BigInteger, primary_key=True),  # 48-bit stable product id
 )
+
+
+# ---------------------------------------------------------------- promotion weeks
+
+# Weekday each store's promotion week starts on (Monday = 0). AH bonus weeks run Monday to
+# Sunday; Jumbo folders run Wednesday to Tuesday. Unlisted stores default to Monday.
+WEEK_START = {"jumbo": 2}
+
+
+def promo_week(store: str, today: date | None = None) -> tuple[date, date]:
+    """The store's promotion week that contains `today`, as (first day, last day)."""
+    today = today or date.today()
+    start = today - timedelta(days=(today.weekday() - WEEK_START.get(store, 0)) % 7)
+    return start, start + timedelta(days=6)
 
 
 # ---------------------------------------------------------------- pricing

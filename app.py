@@ -6,7 +6,7 @@ grocery_agent/settings.py.
 from __future__ import annotations
 
 import hmac
-from datetime import date, timedelta
+from datetime import timedelta
 
 import anthropic
 import streamlit as st
@@ -38,11 +38,6 @@ def describe_tool(t, name: str, args: dict) -> str:
     if name == "forget_preference":
         return t("tool_forget", note=args.get("note", ""))
     return f"⚙️ {name}"
-
-
-def this_week() -> tuple[date, date]:
-    monday = date.today() - timedelta(days=date.today().weekday())
-    return monday, monday + timedelta(days=6)
 
 
 # ---------------------------------------------------------------- shared resources
@@ -170,8 +165,9 @@ with st.sidebar:
     with st.expander(t("promos_import"), expanded=not active):
         store_options = {code: name for code, name, _ in stores}
         store = st.selectbox(t("store"), list(store_options), format_func=lambda c: store_options[c])
-        monday, sunday = this_week()
-        valid = st.date_input(t("valid"), (monday, sunday), format="DD-MM-YYYY")
+        # Keyed per store, so switching store resets the dates to that store's promotion week.
+        valid = st.date_input(t("valid"), promos.promo_week(store), format="DD-MM-YYYY",
+                              key=f"valid-{store}")
         files = st.file_uploader(t("files"), type=["png", "jpg", "jpeg", "webp", "pdf"],
                                  accept_multiple_files=True)
         text = st.text_area(t("paste"), height=100, placeholder=t("paste_placeholder"))

@@ -62,3 +62,16 @@ def test_extract_sends_images_pdf_and_text():
     content = client.calls[0]["messages"][0]["content"]
     assert [c["type"] for c in content] == ["image", "document", "text", "text"]
     assert client.calls[0]["output_format"] is promos.ExtractedPromos
+
+
+def test_promo_week_per_store():
+    from datetime import date
+    wed, sun, tue = date(2026, 10, 21), date(2026, 10, 25), date(2026, 10, 27)
+    # AH (and default): Monday to Sunday
+    assert promos.promo_week("ah", wed) == (date(2026, 10, 19), date(2026, 10, 25))
+    assert promos.promo_week("ah", sun) == (date(2026, 10, 19), date(2026, 10, 25))
+    assert promos.promo_week("plus", wed) == (date(2026, 10, 19), date(2026, 10, 25))
+    # Jumbo: Wednesday to Tuesday
+    assert promos.promo_week("jumbo", wed) == (date(2026, 10, 21), date(2026, 10, 27))
+    assert promos.promo_week("jumbo", tue) == (date(2026, 10, 21), date(2026, 10, 27))
+    assert promos.promo_week("jumbo", date(2026, 10, 20)) == (date(2026, 10, 14), date(2026, 10, 20))
