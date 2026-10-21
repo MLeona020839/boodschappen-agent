@@ -21,6 +21,7 @@ cheapest across 10 Dutch supermarkets (AH, Jumbo, Lidl, Plus, Dirk and more, abo
   1+1 gratis, "2 voor €5", 25% korting, 2e halve prijs and plain price cuts.
 - **Remembers preferences**: household size, dislikes, favourite stores.
 - **Shareable**: friends use their own API key, or yours behind an access code with a per-session spend cap.
+- **English or Chinese UI** (switch in the sidebar, or link to `?lang=中文`); the agent replies in whatever language you write.
 
 ## How it works
 
@@ -59,13 +60,13 @@ the model calls as a tool. The model never adds up prices itself.
 
 ## Testing
 
-65 tests (`pytest -q`):
+68 tests (`pytest -q`):
 
 - unit-size parsing, knapsack and promotion pricing, single/two-store comparison
 - database build, search ranking, and id stability across refreshes
 - promotion storage on SQLite and on **real Postgres** (via `pgserver`, optional)
 - the agent tool loop against a **mocked Messages API** (request shape, history, per-session preferences)
-- the Streamlit UI headless with `AppTest` (key modes, access code, spend cap, per-session preferences)
+- the Streamlit UI headless with `AppTest` (key modes, access code, spend cap, per-session preferences, language switch)
 
 Live checks: a four-item, ten-store comparison took about 1 minute and cost about **$0.19**;
 importing three promotions cost under $0.02.

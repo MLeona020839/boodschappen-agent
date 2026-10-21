@@ -13,6 +13,7 @@ import streamlit as st
 
 from grocery_agent import db, prefs, promos, settings
 from grocery_agent.agent import PRICE, Agent
+from grocery_agent.i18n import EXAMPLES, LANGUAGES, translator
 
 st.set_page_config(page_title="Boodschappen Agent", page_icon="🛒", layout="wide")
 
@@ -21,29 +22,21 @@ SERVER_KEY = settings.get("ANTHROPIC_API_KEY")
 ACCESS_CODE = settings.get("ACCESS_CODE")
 BUDGET = settings.number("SESSION_BUDGET_USD", 1.00)
 
-EXAMPLES = [
-    "我们家两个人，平时去 AH 和 Lidl，不吃香菜",
-    "这周帮我规划 4 顿晚饭，预算 €35，想吃亚洲菜",
-    "鸡胸肉、鸡蛋、牛奶、香蕉，哪家最便宜？",
-    "这周 AH 有什么折扣适合做晚饭？",
-]
-
-
-def describe_tool(name: str, args: dict) -> str:
+def describe_tool(t, name: str, args: dict) -> str:
     if name == "search_products":
-        stores = ", ".join(args.get("stores") or []) or "所有超市"
-        return f"🔍 搜索 **{args.get('query', '')}**（{stores}）"
+        stores = ", ".join(args.get("stores") or []) or t("tool_all_stores")
+        return t("tool_search", query=args.get("query", ""), stores=stores)
     if name == "price_shopping_list":
         items = args.get("items") or []
-        return f"🧮 计算购物篮：{', '.join(i.get('ingredient', '?') for i in items)}"
+        return t("tool_basket", items=", ".join(i.get("ingredient", "?") for i in items))
     if name == "list_promotions":
-        return "🏷️ 查看本周折扣" + (f"（{args['store']}）" if args.get("store") else "")
+        return t("tool_promos") + (f" ({args['store']})" if args.get("store") else "")
     if name == "list_stores":
-        return "🏪 查看超市列表"
+        return t("tool_stores")
     if name == "remember_preference":
-        return f"💾 记住：{args.get('note', '')}"
+        return t("tool_remember", note=args.get("note", ""))
     if name == "forget_preference":
-        return f"🗑️ 忘记：{args.get('note', '')}"
+        return t("tool_forget", note=args.get("note", ""))
     return f"⚙️ {name}"
 
 
@@ -54,7 +47,7 @@ def this_week() -> tuple[date, date]:
 
 # ---------------------------------------------------------------- shared resources
 
-@st.cache_resource(ttl=timedelta(hours=6), show_spinner="正在下载最新价格（第一次约 20 秒）…")
+@st.cache_resource(ttl=timedelta(hours=6), show_spinner=False)
 def prices_ready() -> str:
     """Refresh prices at most once per day; shared by all sessions on this server."""
     db.ensure_fresh(max_age=timedelta(hours=24))
@@ -93,11 +86,26 @@ def current_client() -> tuple[anthropic.Anthropic | None, str | None]:
     return ss._client, mode
 
 
+# ---------------------------------------------------------------- language (first: everything below is translated)
+
+with st.sidebar:
+    # The option labels are what goes in the URL (?lang=中文), so use them as the values.
+    label = st.segmented_control("Language / 语言", list(LANGUAGES.values()), default="English",
+                                 required=True, key="lang", bind="query-params",
+                                 label_visibility="collapsed")
+lang = {v: k for k, v in LANGUAGES.items()}.get(label, "en")
+t = translator(lang)
+
 try:
-    prices_ready()
+    stale = db.age()
+    if stale is None or stale > timedelta(hours=24):
+        with st.spinner(t("prices_loading")):
+            prices_ready()
+    else:
+        prices_ready()
     con = db.connect()
 except Exception as e:  # download failed and no local copy
-    st.error(f"价格数据加载失败：{e}")
+    st.error(t("prices_failed", error=e))
     st.stop()
 
 
@@ -108,75 +116,72 @@ with st.sidebar:
 
     st.subheader("API key")
     local_key_only = SERVER_KEY and not ACCESS_CODE and not SHARED
-    with st.expander("使用自己的 API key", expanded=not local_key_only):
+    with st.expander(t("own_key_expander"), expanded=not local_key_only):
         st.text_input("Anthropic API key", type="password", key="user_key",
                       placeholder="sk-ant-...",
-                      help="只保存在你这次打开的页面里，不会写入文件，也不会被其他人看到。"
-                           "在 console.anthropic.com 的 API Keys 页面创建。")
+                      help=t("key_help"))
         if SERVER_KEY and ACCESS_CODE and not ss.access_ok:
-            code = st.text_input("或者输入邀请码，使用共享 key", type="password")
+            code = st.text_input(t("access_code"), type="password", key="access_code_input")
             if code:
                 if hmac.compare_digest(code.encode(), ACCESS_CODE.encode()):
                     ss.access_ok = True
                     st.rerun()
-                st.error("邀请码不对")
+                st.error(t("access_wrong"))
 
     client, key_mode = current_client()
     over_budget = key_mode == "server" and SHARED and session_cost() >= BUDGET
     if key_mode == "own":
-        st.success("正在使用你自己的 key", icon=":material/key:")
+        st.success(t("using_own_key"), icon=":material/key:")
     elif key_mode == "server" and SHARED:
-        st.info(f"正在使用共享 key · 本次额度 ${session_cost():.2f} / ${BUDGET:.2f}",
-                icon=":material/group:")
+        st.info(t("using_shared_key", spent=session_cost(), budget=BUDGET), icon=":material/group:")
     elif key_mode == "server":
-        st.caption("正在使用本机的 ANTHROPIC_API_KEY")
+        st.caption(t("using_local_key"))
     else:
-        st.warning("请填写你的 API key" + (" 或邀请码" if SERVER_KEY and ACCESS_CODE else "") + "，然后就可以开始了。")
+        st.warning(t("need_key_or_code") if SERVER_KEY and ACCESS_CODE else t("need_key"))
     can_call = client is not None and not over_budget
 
     # ------------------------------------------------------------ price data
-    st.subheader("价格数据")
+    st.subheader(t("prices"))
     stores = db.stores(con)
-    st.caption(f"数据日期 {db.data_date(con)} · {len(stores)} 家超市 · "
-               f"{sum(n for *_, n in stores):,} 个商品 · 每天自动更新")
-    if not SHARED and st.button("⬇️ 立即更新价格", width="stretch"):
-        with st.spinner("正在下载并建库（约 20 秒）…"):
+    st.caption(t("prices_caption", date=db.data_date(con), stores=len(stores),
+                 products=sum(n for *_, n in stores)))
+    if not SHARED and st.button(t("prices_update"), width="stretch"):
+        with st.spinner(t("prices_updating")):
             db.download()
             db.build()
         prices_ready.clear()
         st.rerun()
 
     # ------------------------------------------------------------ promotions
-    st.subheader("本周折扣")
+    st.subheader(t("promos"))
     engine = promos.connect()
     active = promos.list_active(engine)
     if active:
         for pr in active:
             c1, c2 = st.columns([5, 1], vertical_alignment="center")
             c1.markdown(f"**{pr['store'].upper()}** · {pr['title']}  \n"
-                        f":small[{pr['label']} · {pr['n_products']} 个商品 · 至 {pr['valid_to'] or '?'}]")
-            if c2.button("✕", key=f"del-promo-{pr['id']}", help="删除这条折扣"):
+                        f":small[{t('promo_line', label=pr['label'], n=pr['n_products'], until=pr['valid_to'] or '?')}]")
+            if c2.button("✕", key=f"del-promo-{pr['id']}", help=t("promo_delete")):
                 promos.delete(engine, pr["id"])
                 st.rerun()
     else:
-        st.caption("还没有导入折扣。现在按常规价格比价。")
+        st.caption(t("promos_none"))
 
-    with st.expander("➕ 导入折扣", expanded=not active):
+    with st.expander(t("promos_import"), expanded=not active):
         store_options = {code: name for code, name, _ in stores}
-        store = st.selectbox("超市", list(store_options), format_func=lambda c: store_options[c])
+        store = st.selectbox(t("store"), list(store_options), format_func=lambda c: store_options[c])
         monday, sunday = this_week()
-        valid = st.date_input("有效期", (monday, sunday), format="DD-MM-YYYY")
-        files = st.file_uploader("传单截图 / 照片 / PDF", type=["png", "jpg", "jpeg", "webp", "pdf"],
+        valid = st.date_input(t("valid"), (monday, sunday), format="DD-MM-YYYY")
+        files = st.file_uploader(t("files"), type=["png", "jpg", "jpeg", "webp", "pdf"],
                                  accept_multiple_files=True)
-        text = st.text_area("或粘贴折扣页面的文字", height=100,
-                            placeholder="例如从 ah.nl/bonus 复制的内容")
+        text = st.text_area(t("paste"), height=100, placeholder=t("paste_placeholder"))
         if SHARED:
-            st.caption("导入的折扣所有人都能看到和使用。")
-        if st.button("识别并导入", type="primary", disabled=not can_call or not (files or text.strip()),
+            st.caption(t("promos_shared_note"))
+        if st.button(t("import_button"), type="primary", disabled=not can_call or not (files or text.strip()),
                      width="stretch"):
             vf, vt = (valid[0].isoformat(), valid[1].isoformat()) if len(valid) == 2 else (None, None)
             from grocery_agent.importer import import_promotions
-            with st.spinner("Claude 正在识别折扣并匹配商品…"):
+            with st.spinner(t("importing")):
                 try:
                     res = import_promotions(store, files=[(f.name, f.getvalue()) for f in files or []],
                                             text=text, valid_from=vf, valid_to=vt, client=client)
@@ -184,32 +189,32 @@ with st.sidebar:
                     ss.import_cost += (res.input_tokens * PRICE["input"]
                                        + res.output_tokens * PRICE["output"]) / 1_000_000
                 except anthropic.AuthenticationError:
-                    st.error("API key 无效，请检查。")
+                    st.error(t("import_bad_key"))
                 except Exception as e:  # show any failure in the sidebar, keep the app alive
-                    st.error(f"导入失败：{e}")
+                    st.error(t("import_failed", error=e))
             if ss.import_result:
                 st.rerun()
 
         res = ss.import_result
         if res:
-            st.success(f"导入 {len(res.saved)} 条折扣")
+            st.success(t("imported", n=len(res.saved)))
             for r in res.saved:
                 more = " …" if len(r["products"]) > 4 else ""
                 st.markdown(f"- **{r['title']}** · {r['promotion']}  \n"
                             f"  :small[{', '.join(r['products'][:4])}{more}]")
             if res.unmatched:
-                st.warning("没找到对应商品：" + "；".join(f"{r['title']}（{r['promotion']}）"
-                                                     for r in res.unmatched))
+                st.warning(t("unmatched", items="; ".join(f"{r['title']} ({r['promotion']})"
+                                                          for r in res.unmatched)))
 
-    if st.button("清理过期折扣", width="stretch"):
+    if st.button(t("promos_cleanup"), width="stretch"):
         n = promos.delete_expired(engine)
-        st.toast(f"删除了 {n} 条过期折扣")
+        st.toast(t("promos_removed", n=n))
         st.rerun()
 
     # ------------------------------------------------------------ preferences
-    st.subheader("我的偏好")
+    st.subheader(t("prefs"))
     if SHARED:
-        st.caption("只在这次打开的页面里有效，刷新后会清空。")
+        st.caption(t("prefs_session_note"))
     notes = prefs.load()
     for i, note in enumerate(notes):
         c1, c2 = st.columns([5, 1], vertical_alignment="center")
@@ -218,18 +223,19 @@ with st.sidebar:
             prefs.save([n for n in notes if n != note])
             st.rerun()
     with st.form("add-pref", clear_on_submit=True, border=False):
-        new = st.text_input("添加偏好", placeholder="例如：不吃猪肉", label_visibility="collapsed")
-        if st.form_submit_button("添加") and new.strip():
+        new = st.text_input(t("prefs_add"), placeholder=t("prefs_placeholder"),
+                            label_visibility="collapsed")
+        if st.form_submit_button(t("prefs_add_button")) and new.strip():
             prefs.save([*notes, new.strip()])
             st.rerun()
 
     # ------------------------------------------------------------ usage
-    st.subheader("本次花费")
+    st.subheader(t("usage"))
     if ss.agent or ss.import_cost:
         u = ss.agent.usage if ss.agent else {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
-        st.caption(f"约 ${session_cost():.3f} · 对话输入 {u['input'] + u['cache_read'] + u['cache_write']:,} "
-                   f"/ 输出 {u['output']:,} tokens")
-    if st.button("🆕 新对话", width="stretch"):
+        st.caption(t("usage_caption", cost=session_cost(),
+                     inp=u["input"] + u["cache_read"] + u["cache_write"], out=u["output"]))
+    if st.button(t("new_chat"), width="stretch"):
         ss.agent = None
         ss.history = []
         st.rerun()
@@ -237,35 +243,26 @@ with st.sidebar:
 
 # ---------------------------------------------------------------- chat
 
-st.title("这周吃什么，去哪买最便宜？")
+st.title(t("title"))
 
 if client is None:
-    invite = "如果有人给了你邀请码，直接填邀请码就行。否则请填写你自己的 Anthropic API key：" \
-        if SERVER_KEY and ACCESS_CODE else "请填写你的 Anthropic API key。"
-    st.info(
-        "告诉它你想吃什么、预算多少，它会查 10 家荷兰超市的价格，给出菜单、购物清单，"
-        "以及去哪家（或哪两家）买最便宜。\n\n"
-        "**开始前**：打开左侧边栏（手机上点左上角的 **»**），" + invite +
-        "可以在 [console.anthropic.com](https://console.anthropic.com) 注册、充值后，在 API Keys 页面创建，"
-        "费用按用量算在你自己的账户上，规划一周菜单大约 $0.1–0.5。",
-        title="怎么用", icon=":material/waving_hand:",
-    )
+    how_key = t("intro_with_code") if SERVER_KEY and ACCESS_CODE else t("intro_own_key")
+    st.info(t("intro_body", how_key=how_key), title=t("intro_title"), icon=":material/waving_hand:")
 
 if over_budget:
-    st.warning(f"共享 key 在这次会话里的额度（${BUDGET:.2f}）已经用完。"
-               "可以在左侧填写你自己的 API key 继续使用。")
+    st.warning(t("over_budget", budget=BUDGET))
 
 for msg in ss.history:
     with st.chat_message(msg["role"]):
         if msg.get("steps"):
-            with st.expander(f"查询过程（{len(msg['steps'])} 步）"):
+            with st.expander(t("steps", n=len(msg["steps"]))):
                 st.markdown("\n\n".join(msg["steps"]))
         st.markdown(msg["content"])
 
-prompt = st.chat_input("用中文、英文或荷兰语提问…", disabled=not can_call)
+prompt = st.chat_input(t("chat_placeholder"), disabled=not can_call)
 if not ss.history and can_call:
     cols = st.columns(2)
-    for i, ex in enumerate(EXAMPLES):
+    for i, ex in enumerate(EXAMPLES[lang]):
         if cols[i % 2].button(ex, key=f"ex-{i}", width="stretch"):
             prompt = ex
 
@@ -280,29 +277,29 @@ if prompt and can_call:
     agent.client = client  # the user may have switched keys mid-conversation
     steps: list[str] = []
     with st.chat_message("assistant"):
-        status = st.status("正在思考…", expanded=True)
+        status = st.status(t("thinking"), expanded=True)
 
         def on_tool(name: str, args: dict) -> None:
-            steps.append(describe_tool(name, args))
+            steps.append(describe_tool(t, name, args))
             status.markdown(steps[-1])
-            status.update(label=f"正在查价…（{len(steps)} 步）")
+            status.update(label=t("working", n=len(steps)))
 
         agent.on_tool = on_tool
         checkpoint = len(agent.messages)
         try:
             answer = agent.ask(prompt)
-            status.update(label=f"完成（{len(steps)} 步）", state="complete", expanded=False)
+            status.update(label=t("done", n=len(steps)), state="complete", expanded=False)
         except anthropic.APIError as e:
             del agent.messages[checkpoint:]  # drop the half-finished turn
-            status.update(label="出错了", state="error")
+            status.update(label=t("error"), state="error")
             if isinstance(e, anthropic.AuthenticationError):
-                answer = "API key 无效，请在左侧检查你填写的 key。"
+                answer = t("err_auth")
             elif isinstance(e, anthropic.RateLimitError):
-                answer = "请求太频繁，请稍等一会儿再试。"
+                answer = t("err_rate")
             elif isinstance(e, anthropic.APIStatusError):
-                answer = f"API 出错（{e.status_code}）：{e.message}"
+                answer = t("err_status", code=e.status_code, message=e.message)
             else:
-                answer = "连不上 API，请检查网络。"
+                answer = t("err_conn")
         st.markdown(answer)
     ss.history.append({"role": "assistant", "content": answer, "steps": steps})
     st.rerun()

@@ -19,10 +19,12 @@ def no_network(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
-def run(**secrets):
+def run(query=None, **secrets):
     at = AppTest.from_file(str(APP), default_timeout=30)
     for k, v in secrets.items():
         at.secrets[k] = v
+    for k, v in (query or {}).items():
+        at.query_params[k] = v
     return at.run()
 
 
@@ -41,33 +43,33 @@ def test_local_with_env_key(monkeypatch):
     at = run()
     assert not at.exception
     assert not chat_disabled(at)
-    assert "本机" in sidebar_text(at)
+    assert "from this computer" in sidebar_text(at)
 
 
 def test_shared_without_any_key_asks_for_one():
     at = run(SHARED_DEPLOYMENT="true")
     assert not at.exception
     assert chat_disabled(at)
-    assert "请填写你的 API key" in sidebar_text(at) and "邀请码" not in sidebar_text(at)
+    assert "Enter your API key" in sidebar_text(at) and "access code" not in sidebar_text(at)
 
 
 def test_own_key_enables_chat():
     at = run(SHARED_DEPLOYMENT="true")
     at.sidebar.text_input(key="user_key").input("sk-ant-mine").run()
     assert not chat_disabled(at)
-    assert "你自己的 key" in sidebar_text(at)
+    assert "your own key" in sidebar_text(at)
 
 
 def test_access_code_unlocks_server_key():
     at = run(SHARED_DEPLOYMENT="true", ANTHROPIC_API_KEY="sk-ant-server", ACCESS_CODE="pizza")
     assert chat_disabled(at)
-    code = next(t for t in at.sidebar.text_input if "邀请码" in t.label)
+    code = at.sidebar.text_input(key="access_code_input")
     code.input("wrong").run()
-    assert chat_disabled(at) and any("不对" in e.value for e in at.sidebar.error)
-    code = next(t for t in at.sidebar.text_input if "邀请码" in t.label)
+    assert chat_disabled(at) and any("not right" in e.value for e in at.sidebar.error)
+    code = at.sidebar.text_input(key="access_code_input")
     code.input("pizza").run()
     assert not chat_disabled(at)
-    assert "共享 key" in sidebar_text(at) and "$1.00" in sidebar_text(at)
+    assert "shared key" in sidebar_text(at) and "$1.00" in sidebar_text(at)
 
 
 def test_server_key_without_access_code_is_open():
@@ -80,13 +82,36 @@ def test_budget_exhausted_blocks_shared_key():
     at.session_state["import_cost"] = 0.06
     at.run()
     assert chat_disabled(at)
-    assert any("额度" in w.value for w in at.warning)
+    assert any("budget" in w.value for w in at.warning)
 
 
 def test_shared_preferences_stay_in_session(monkeypatch, tmp_path):
     at = run(SHARED_DEPLOYMENT="true")
     form_input = at.sidebar.text_input[-1]
-    form_input.input("不吃猪肉")
+    form_input.input("no pork")
     at.sidebar.button[-2].click().run()  # the form's "添加" button
     store = at.session_state["prefs_store"]
-    assert type(store).__name__ == "MemoryStore" and store.load() == ["不吃猪肉"]
+    assert type(store).__name__ == "MemoryStore" and store.load() == ["no pork"]
+
+
+EN_TITLE = "What's for dinner, and where is it cheapest?"
+
+
+def test_english_is_the_default_language():
+    at = run(SHARED_DEPLOYMENT="true")
+    assert at.title[0].value == EN_TITLE
+    assert "How it works" in at.info[0].proto.title
+
+
+def test_chinese_via_url_and_switch_back():
+    at = run(query={"lang": "中文"}, SHARED_DEPLOYMENT="true")
+    assert at.title[0].value == "这周吃什么，去哪买最便宜？"
+    assert "请填写你的 API key" in sidebar_text(at)
+    at.sidebar.segmented_control(key="lang").set_value("English").run()
+    assert at.title[0].value == EN_TITLE
+
+
+def test_unknown_language_in_url_falls_back_to_english():
+    at = run(query={"lang": "zh"}, SHARED_DEPLOYMENT="true")  # not an option label
+    assert not at.exception
+    assert at.title[0].value == EN_TITLE
