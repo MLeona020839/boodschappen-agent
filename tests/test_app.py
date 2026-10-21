@@ -193,3 +193,36 @@ def test_working_shared_key_shows_budget():
     at = run(SHARED_DEPLOYMENT="true", ANTHROPIC_API_KEY="sk-ant-good-server", ACCESS_CODE="pizza")
     at = submit_gate(at, code="pizza")
     assert "shared key" in texts(at) and not at.error
+
+
+def import_with_text(monkeypatch, outcome):
+    from grocery_agent import importer
+
+    def fake_import(store, **kw):
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(importer, "import_promotions", fake_import)
+    at = unlocked_shared()
+    at.selectbox[0].select("dirk").run()
+    at.text_area(key="paste-0").input("Grillworst 1.69").run()
+    next(b for b in at.button if b.label == "Read and import").click().run()
+    return at
+
+
+def test_inputs_are_cleared_after_a_successful_import(monkeypatch):
+    from grocery_agent.importer import ImportResult
+    ok = ImportResult(store="dirk", saved=[{"title": "Grillworst", "promotion": "1.69", "kind": "promo_price",
+                                            "valid_to": None, "products": ["1 de Beste Grillworst"]}])
+    at = import_with_text(monkeypatch, ok)
+    assert "Imported 1 promotions" in texts(at)
+    assert at.text_area(key="paste-1").value == ""  # fresh, empty box
+    with pytest.raises(KeyError):
+        at.text_area(key="paste-0")
+
+
+def test_inputs_stay_when_the_import_fails(monkeypatch):
+    at = import_with_text(monkeypatch, RuntimeError("could not read the folder"))
+    assert "Import failed" in texts(at)
+    assert at.text_area(key="paste-0").value == "Grillworst 1.69"  # kept for a retry

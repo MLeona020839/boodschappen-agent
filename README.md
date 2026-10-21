@@ -64,7 +64,7 @@ the model calls as a tool. The model never adds up prices itself.
 
 ## Testing
 
-97 tests (`pytest -q`):
+99 tests (`pytest -q`):
 
 - unit-size parsing, knapsack and promotion pricing, single/two-store comparison
 - database build, search ranking, and id stability across refreshes

@@ -223,9 +223,13 @@ with panel:
             # Keyed per store, so switching store resets the dates to that store's promotion week.
             valid = st.date_input(t("valid"), promos.promo_week(store), format="DD-MM-YYYY",
                                   key=f"valid-{store}")
+            # A new key after each successful import gives an empty upload box and text area.
+            upload_round = ss.get("upload_round", 0)
             files = st.file_uploader(t("files"), type=["png", "jpg", "jpeg", "webp", "pdf"],
+                                     key=f"files-{upload_round}",
                                      accept_multiple_files=True)
-            text = st.text_area(t("paste"), height=100, placeholder=t("paste_placeholder"))
+            text = st.text_area(t("paste"), height=100, placeholder=t("paste_placeholder"),
+                                key=f"paste-{upload_round}")
             if SHARED:
                 st.caption(t("promos_shared_note"))
             has_input = bool(files or text.strip())
@@ -244,6 +248,7 @@ with panel:
                         ss.import_result = res
                         ss.import_cost += (res.input_tokens * PRICE["input"]
                                            + res.output_tokens * PRICE["output"]) / 1_000_000
+                        ss.upload_round = upload_round + 1  # clear the inputs; on failure they stay for a retry
                     except anthropic.AuthenticationError:
                         st.error(t("import_bad_key") if key_mode == "own" else t("shared_key_rejected"))
                     except Exception as e:  # show any failure in the panel, keep the app alive
