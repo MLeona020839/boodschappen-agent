@@ -59,3 +59,51 @@ def test_tool_loop_history_and_session_prefs():
                for c in m["content"] if c.get("type") == "tool_result"]
     assert [r["tool_use_id"] for r in results] == ["t1", "t2"]
     assert agent.cost > 0
+
+
+class Interrupted(BaseException):
+    """Stands in for Streamlit's StopException/RerunException (not an Exception subclass)."""
+
+
+def test_interrupted_turn_is_rolled_back_and_the_next_turn_works():
+    prefs.use_store(prefs.MemoryStore())
+    script = [
+        [{"type": "tool_use", "id": "t1", "name": "list_stores", "input": {}}],
+        [{"type": "text", "text": "fine now"}],
+    ]
+    requests = []
+
+    def stop_mid_turn(name, args):
+        raise Interrupted  # the script is stopped right after the model asked for a tool
+
+    agent = Agent(mock_client(script, requests), on_tool=stop_mid_turn)
+    with pytest.raises(Interrupted):
+        agent.ask("first try")
+    assert agent.messages == []  # no dangling tool_use left behind
+
+    agent.on_tool = None
+    assert agent.ask("second try") == "fine now"
+    assert [m["role"] for m in requests[-1][1]["messages"]] == ["user"]
+
+
+def test_history_broken_by_an_older_version_is_repaired():
+    prefs.use_store(prefs.MemoryStore())
+    requests = []
+    agent = Agent(mock_client([[{"type": "text", "text": "ok"}]], requests), on_tool=None)
+    agent.messages = [  # exactly the state from the bug report
+        {"role": "user", "content": "plan dinner"},
+        {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_x", "name": "list_stores", "input": {}}]},
+    ]
+    assert agent.ask("plan dinner") == "ok"
+    sent = requests[0][1]["messages"]
+    assert [m["role"] for m in sent] == ["user"] and sent[0]["content"] == "plan dinner"
+
+
+def test_completed_turns_are_kept():
+    prefs.use_store(prefs.MemoryStore())
+    requests = []
+    agent = Agent(mock_client([[{"type": "text", "text": "a"}], [{"type": "text", "text": "b"}]], requests),
+                  on_tool=None)
+    agent.ask("one")
+    agent.ask("two")
+    assert [m["role"] for m in requests[-1][1]["messages"]] == ["user", "assistant", "user"]

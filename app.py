@@ -323,7 +323,8 @@ with chat_col:
     prompt = typed or prompt
 
     if prompt and can_call:
-        ss.history.append({"role": "user", "content": prompt})
+        # The prompt goes into the history together with its answer (below), so a turn that
+        # is interrupted by a rerun leaves no orphaned question behind.
         with messages:
             with st.chat_message("user"):
                 st.markdown(prompt)
@@ -342,12 +343,10 @@ with chat_col:
                     status.update(label=t("working", n=len(steps)))
 
                 agent.on_tool = on_tool
-                checkpoint = len(agent.messages)
                 try:
-                    answer = agent.ask(prompt)
+                    answer = agent.ask(prompt)  # rolls itself back if interrupted
                     status.update(label=t("done", n=len(steps)), state="complete", expanded=False)
                 except anthropic.APIError as e:
-                    del agent.messages[checkpoint:]  # drop the half-finished turn
                     status.update(label=t("error"), state="error")
                     if isinstance(e, anthropic.AuthenticationError):
                         answer = t("err_auth") if key_mode == "own" else t("shared_key_rejected")
@@ -358,5 +357,6 @@ with chat_col:
                     else:
                         answer = t("err_conn")
                 st.markdown(answer)
+        ss.history.append({"role": "user", "content": prompt})
         ss.history.append({"role": "assistant", "content": answer, "steps": steps})
         st.rerun()

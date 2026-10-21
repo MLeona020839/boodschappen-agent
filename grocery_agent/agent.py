@@ -101,6 +101,31 @@ class Agent:
         return sum(self.usage[k] * PRICE[k] for k in PRICE) / 1_000_000
 
     def ask(self, user_text: str) -> str:
+        """Run one turn. The history is only kept if the turn finishes: if it is interrupted
+        (an API error, or Streamlit stopping the script for a rerun, which raises a
+        BaseException), the half-finished turn is rolled back, because a tool call without
+        its result makes every later request fail with a 400."""
+        self._repair()
+        checkpoint = len(self.messages)
+        try:
+            return self._ask(user_text)
+        except BaseException:
+            del self.messages[checkpoint:]
+            raise
+
+    def _repair(self) -> None:
+        """Drop a trailing incomplete turn: the history must end with a final assistant answer."""
+        while self.messages:
+            last = self.messages[-1]
+            content = last.get("content")
+            blocks = content if isinstance(content, list) else []
+            calls_tools = any(getattr(b, "type", None) == "tool_use"
+                              or (isinstance(b, dict) and b.get("type") == "tool_use") for b in blocks)
+            if last["role"] == "assistant" and not calls_tools:
+                return
+            self.messages.pop()
+
+    def _ask(self, user_text: str) -> str:
         self.messages.append({"role": "user", "content": user_text})
         runner = self.client.beta.messages.tool_runner(
             model=MODEL,
@@ -157,23 +182,22 @@ def chat() -> None:
             break
         if not user:
             continue
-        checkpoint = len(agent.messages)
         try:
             answer = agent.ask(user)
+        except KeyboardInterrupt:  # Ctrl+C cancels this turn, not the whole chat
+            print("\n(cancelled)\n")
+            continue
         except anthropic.AuthenticationError:
             print("No valid API key. Set ANTHROPIC_API_KEY and try again.")
             return
         except anthropic.RateLimitError:
             print("Rate limited; wait a moment and try again.")
-            del agent.messages[checkpoint:]  # drop the half-finished turn
             continue
         except anthropic.APIStatusError as e:
             print(f"API error {e.status_code}: {e.message}")
-            del agent.messages[checkpoint:]  # drop the half-finished turn
             continue
         except anthropic.APIConnectionError:
             print("Could not reach the API; check your connection.")
-            del agent.messages[checkpoint:]  # drop the half-finished turn
             continue
         print(f"\nagent › {answer}\n")
     u = agent.usage
