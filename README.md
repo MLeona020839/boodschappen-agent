@@ -6,9 +6,9 @@ cheapest across 10 Dutch supermarkets (AH, Jumbo, Lidl, Plus, Dirk and more, abo
 > *"Two people, four dinners this week, €35 budget, something Asian, no coriander."*
 > → a meal plan, a shopping list grouped by store, the total, and whether a second store is worth the trip.
 
-[中文说明](README.zh.md)
+**Live demo: [boodschappen-agent-ming.streamlit.app](https://boodschappen-agent-ming.streamlit.app/)** (bring your own Anthropic API key) · [中文说明](README.zh.md)
 
-![Screenshot](docs/screenshot.jpg)
+![Planning four dinners for two around this week's AH promotions](docs/screenshot.webp)
 
 ## What it does
 
@@ -70,8 +70,9 @@ the model calls as a tool. The model never adds up prices itself.
 - the Streamlit UI headless with `AppTest` (unlock gate, access code, spend cap, per-session preferences, store promotion weeks, language switch)
 - graceful degradation when the promotions database is unreachable (e.g. a paused Supabase project)
 
-Live checks: a four-item, ten-store comparison took about 1 minute and cost about **$0.19**;
-importing three promotions cost under $0.02.
+Live runs: planning four dinners for two around 50 imported AH promotions took 19 tool steps and
+cost **$0.43**, landing at €24.72 against a €35 budget (screenshot above); a four-item,
+ten-store comparison cost about $0.19.
 
 ## Run locally
 
