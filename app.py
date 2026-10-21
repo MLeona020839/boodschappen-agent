@@ -9,6 +9,7 @@ import hmac
 from datetime import timedelta
 
 import anthropic
+import sqlalchemy as sa
 import streamlit as st
 
 from grocery_agent import db, prefs, promos, settings
@@ -149,8 +150,14 @@ with st.sidebar:
 
     # ------------------------------------------------------------ promotions
     st.subheader(t("promos"))
-    engine = promos.connect()
-    active = promos.list_active(engine)
+    try:
+        engine = promos.connect()
+        active = promos.list_active(engine)
+    except (promos.Unavailable, sa.exc.SQLAlchemyError) as e:
+        if not isinstance(e, promos.Unavailable):
+            promos.mark_down(e)
+        engine, active = None, []
+        st.warning(t("promos_unavailable"), icon=":material/cloud_off:")
     if active:
         for pr in active:
             c1, c2 = st.columns([5, 1], vertical_alignment="center")
@@ -159,10 +166,10 @@ with st.sidebar:
             if c2.button("✕", key=f"del-promo-{pr['id']}", help=t("promo_delete")):
                 promos.delete(engine, pr["id"])
                 st.rerun()
-    else:
+    elif engine is not None:
         st.caption(t("promos_none"))
 
-    with st.expander(t("promos_import"), expanded=not active):
+    with st.expander(t("promos_import"), expanded=not active and engine is not None):
         store_options = {code: name for code, name, _ in stores}
         store = st.selectbox(t("store"), list(store_options), format_func=lambda c: store_options[c])
         # Keyed per store, so switching store resets the dates to that store's promotion week.
@@ -173,7 +180,8 @@ with st.sidebar:
         text = st.text_area(t("paste"), height=100, placeholder=t("paste_placeholder"))
         if SHARED:
             st.caption(t("promos_shared_note"))
-        if st.button(t("import_button"), type="primary", disabled=not can_call or not (files or text.strip()),
+        if st.button(t("import_button"), type="primary",
+                     disabled=engine is None or not can_call or not (files or text.strip()),
                      width="stretch"):
             vf, vt = (valid[0].isoformat(), valid[1].isoformat()) if len(valid) == 2 else (None, None)
             from grocery_agent.importer import import_promotions
@@ -202,7 +210,7 @@ with st.sidebar:
                 st.warning(t("unmatched", items="; ".join(f"{r['title']} ({r['promotion']})"
                                                           for r in res.unmatched)))
 
-    if st.button(t("promos_cleanup"), width="stretch"):
+    if engine is not None and st.button(t("promos_cleanup"), width="stretch"):
         n = promos.delete_expired(engine)
         st.toast(t("promos_removed", n=n))
         st.rerun()

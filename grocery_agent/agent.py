@@ -46,8 +46,10 @@ Saved user preferences:
 def system_prompt() -> str:
     con = db.connect()
     notes = prefs.load()
-    active = promos.list_active(promos.connect())
-    if active:
+    active = promos.safely(promos.list_active, default=None)
+    if active is None:
+        promo_summary = "the promotions database is unavailable right now, so use regular prices and say so."
+    elif active:
         by_store: dict[str, int] = {}
         for pr in active:
             by_store[pr["store"]] = by_store.get(pr["store"], 0) + 1

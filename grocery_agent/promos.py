@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
+import time
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Literal, Optional
@@ -116,6 +118,13 @@ def offers_for(regular_price: float, promo: Promo) -> list[Offer]:
 # ---------------------------------------------------------------- storage
 
 _engines: dict[str, sa.Engine] = {}
+_down_until = 0.0     # after a failure, skip the database for a minute instead of timing out again
+RETRY_AFTER = 60.0
+log = logging.getLogger(__name__)
+
+
+class Unavailable(RuntimeError):
+    """The promotions database can't be reached (e.g. a paused free Supabase project)."""
 
 
 def _normalize(url: str) -> str:
@@ -130,12 +139,39 @@ def connect(url: str | None = None) -> sa.Engine:
     """Engine for the promotions store (cached per URL); creates the tables if needed."""
     url = _normalize(url or settings.get("PROMOS_DATABASE_URL") or DEFAULT_URL)
     if url not in _engines:
+        if time.monotonic() < _down_until:
+            raise Unavailable("promotions database was unreachable a moment ago")
         if url.startswith("sqlite:///"):
             DATA_DIR.mkdir(parents=True, exist_ok=True)
-        engine = sa.create_engine(url, pool_pre_ping=True)
-        metadata.create_all(engine)
+            engine = sa.create_engine(url)
+        else:  # fail fast instead of hanging when the server is paused or unreachable
+            engine = sa.create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
+        try:
+            metadata.create_all(engine)
+        except sa.exc.SQLAlchemyError as e:
+            mark_down(e)
+            raise Unavailable(str(e)) from e
         _engines[url] = engine
     return _engines[url]
+
+
+def mark_down(error: Exception) -> None:
+    global _down_until
+    _down_until = time.monotonic() + RETRY_AFTER
+    log.warning("promotions database unavailable: %s", error)
+
+
+def safely(fn, *args, default, **kwargs):
+    """Run `fn(engine, ...)`, returning `default` if the database is unavailable.
+
+    Promotions are optional: when they can't be read, prices still work without them."""
+    try:
+        return fn(connect(), *args, **kwargs)
+    except Unavailable:
+        return default
+    except sa.exc.SQLAlchemyError as e:
+        mark_down(e)
+        return default
 
 
 def add(engine: sa.Engine, store: str, extracted: "ExtractedPromo", product_ids: list[int],

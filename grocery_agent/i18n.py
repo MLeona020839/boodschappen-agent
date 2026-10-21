@@ -5,6 +5,7 @@ LANGUAGES = {"en": "English", "nl": "Nederlands", "zh": "中文"}
 
 TEXT: dict[str, dict[str, str]] = {
     "en": {
+        "promos_unavailable": "The promotions database can't be reached right now, so regular prices are used. If it is a free Supabase project, it may be paused: restore it in the Supabase dashboard.",
         "api_key_header": "API key",
         "api_key_label": "Anthropic API key",
         "title": "What's for dinner, and where is it cheapest?",
@@ -90,6 +91,7 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Forgetting: {note}",
     },
     "nl": {
+        "promos_unavailable": "De aanbiedingendatabase is nu niet bereikbaar, dus er wordt met normale prijzen gerekend. Is het een gratis Supabase-project, dan is het misschien gepauzeerd: herstel het in het Supabase-dashboard.",
         "api_key_header": "API-sleutel",
         "api_key_label": "Anthropic API-sleutel",
         "title": "Wat eten we, en waar is het het goedkoopst?",
@@ -168,6 +170,7 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Vergeten: {note}",
     },
     "zh": {
+        "promos_unavailable": "现在连不上折扣数据库，暂时按常规价格比价。如果用的是免费的 Supabase 项目，可能是被暂停了，请到 Supabase 控制台里恢复。",
         "api_key_header": "API key",
         "api_key_label": "Anthropic API key",
         "title": "这周吃什么，去哪买最便宜？",

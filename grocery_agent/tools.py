@@ -15,10 +15,6 @@ def _db():
     return db.connect()
 
 
-def _promo_db():
-    return promos.connect()
-
-
 def _product(row, active: dict[int, list[promos.Promo]]) -> basket.Product:
     offers = tuple(o for pr in active.get(row["id"], []) for o in promos.offers_for(row["price"], pr))
     return basket.Product(
@@ -72,7 +68,7 @@ def search_products(
         rows = kept
     if not rows:
         return json.dumps({"query": query, "results": [], "hint": "No match. Try another Dutch word."})
-    active = promos.active_for_products(_promo_db(), [r["id"] for r in rows])
+    active = promos.safely(promos.active_for_products, [r["id"] for r in rows], default={})
     results = []
     for r in rows:
         item = {
@@ -122,7 +118,7 @@ def price_shopping_list(items: list[BasketItem]) -> str:
         for it in items
     ]
     ids = sorted({i for it in parsed for i in it.product_ids})
-    active = promos.active_for_products(_promo_db(), ids)
+    active = promos.safely(promos.active_for_products, ids, default={})
     products = {pid: _product(row, active) for pid, row in db.get_products(_db(), ids).items()}
     return json.dumps(basket.price_basket(parsed, products), ensure_ascii=False)
 
@@ -138,11 +134,16 @@ def list_promotions(store: Optional[str] = None, query: Optional[str] = None) ->
         store: Store code to filter on, e.g. "ah". Omit for all stores.
         query: Optional Dutch word to filter promotion titles and product names, e.g. "kip".
     """
-    pcon, con = _promo_db(), _db()
+    con = _db()
+    active = promos.safely(promos.list_active, store=store, default=None)
+    if active is None:
+        return json.dumps({"promotions": [], "note": "The promotions database is unavailable right "
+                           "now; plan with regular prices and tell the user."}, ensure_ascii=False)
     q = (query or "").lower()
     out = []
-    for pr in promos.list_active(pcon, store=store):
-        rows = db.get_products(con, promos.product_ids_for(pcon, pr["id"])).values()
+    for pr in active:
+        ids = promos.safely(promos.product_ids_for, pr["id"], default=[])
+        rows = db.get_products(con, ids).values()
         products = [
             {"id": r["id"], "name": r["name"], "size": _size(r), "shelf_price": r["price"]}
             for r in rows
