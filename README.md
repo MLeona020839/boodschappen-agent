@@ -58,10 +58,13 @@ the model calls as a tool. The model never adds up prices itself.
 | One store or two? | Enumerate all single stores and store pairs; report the pair only if it actually uses both stores and saves money |
 | Promotions must outlive price refreshes and cloud restarts | Separate store (SQLAlchemy: SQLite locally, Postgres such as Supabase when deployed), linked by stable product ids |
 | LLM-chosen product ids could be invented | Matching output is filtered against the candidate set the model was shown |
+| Store-filtered search took 0.5–3 s: SQLite scanned the store's rows and ran `MATCH` on each | Materialise the full-text hits first, then filter by store: about 1 ms, roughly 1000× faster |
+| Folder wording rarely equals catalogue wording ("Varkensschnitzels", "Capri-Sun", "A, B of C") | Claude gives several search terms; singular and de-hyphenated variants; searches take turns filling the candidate list. On a 36-item Dirk folder, matched promotions went from 20 to 28 |
+| A Dirk folder imported with "AH" selected | No default store, and the store printed on the folder (read by Claude) overrides a wrong choice |
 
 ## Testing
 
-84 tests (`pytest -q`):
+97 tests (`pytest -q`):
 
 - unit-size parsing, knapsack and promotion pricing, single/two-store comparison
 - database build, search ranking, and id stability across refreshes

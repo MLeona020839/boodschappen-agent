@@ -176,11 +176,18 @@ def safely(fn, *args, default, **kwargs):
 
 def add(engine: sa.Engine, store: str, extracted: "ExtractedPromo", product_ids: list[int],
         valid_from: str | None, valid_to: str | None, source: str) -> int:
+    vf, vt = extracted.valid_from or valid_from, extracted.valid_to or valid_to
     with engine.begin() as con:
+        # Importing the same folder again replaces its promotions instead of duplicating them.
+        c = promotions.c
+        _delete_where(con, sa.and_(c.store == store, c.title == extracted.title,
+                                   c.label == extracted.label,
+                                   c.valid_from.is_(None) if vf is None else c.valid_from == vf,
+                                   c.valid_to.is_(None) if vt is None else c.valid_to == vt))
         pid = con.execute(sa.insert(promotions).values(
             store=store, title=extracted.title, label=extracted.label, kind=extracted.kind,
             percent=extracted.percent, price=extracted.price, buy=extracted.buy, pay=extracted.pay,
-            valid_from=extracted.valid_from or valid_from, valid_to=extracted.valid_to or valid_to,
+            valid_from=vf, valid_to=vt,
             source=source, created_at=date.today().isoformat(),
         ).returning(promotions.c.id)).scalar_one()
         unique = sorted(set(product_ids))
@@ -276,9 +283,15 @@ class ExtractedPromo(BaseModel):
     valid_from: Optional[str] = Field(None, description="ISO date if printed")
     valid_to: Optional[str] = Field(None, description="ISO date if printed")
     search_query: str = Field(description="1-3 Dutch words to find the product in a supermarket catalogue, e.g. 'kipfilet'")
+    search_terms: list[str] = Field(
+        default_factory=list,
+        description="More Dutch search words: singular forms, brand names, and each product separately "
+                    "when one promotion covers several (e.g. ['coca-cola', 'fanta', 'sprite', 'fuze tea']).")
 
 
 class ExtractedPromos(BaseModel):
+    store_on_folder: Optional[str] = Field(
+        None, description="Name of the supermarket printed on the folder or page, if visible (e.g. 'Dirk')")
     promotions: list[ExtractedPromo]
 
 
@@ -300,12 +313,21 @@ Rules:
 - A single new price ("nu 2,99", "van 3,49 voor 2,49") -> promo_price price=2.49.
 - Anything else (e.g. "2e gratis bij 3", "volume voordeel", "50% korting op de 2e" -> use buy_x_pay_y
   only if it maps exactly, otherwise "other").
-- Use Dutch for search_query, naming the plain product (e.g. 'kipfilet', 'halfvolle melk').
+- search_query: the plain product in Dutch, singular, as a catalogue would name it
+  ('varkensschnitzel', not 'varkensschnitzels'; 'kipfilet', 'halfvolle melk').
+- search_terms: extra words that help find it: the brand on its own, other spellings, and every
+  product separately when the deal covers several ('Mars, Snickers, Twix of Bounty' -> each name).
+- store_on_folder: the supermarket name you can see on the folder or page, or null.
 Skip non-food (cleaning, cosmetics, flowers) unless clearly groceries."""
 
 MATCH_PROMPT = """For each promotion below, choose the product ids from its candidate list that the
-promotion applies to. A promotion like 'Alle AH kipfilet' covers every matching pack size; a specific
-brand or variety covers only that. Return an empty list when no candidate fits. Do not invent ids.
+promotion applies to.
+- 'Alle AH kipfilet' covers every matching pack size; a named brand or variety covers only that.
+- A promotion on a plain product ('Kipfilet 500 gram', 'Grillworst', 'Verse kruiden') covers the
+  store's ordinary products of that kind: include the closest matching packs, even if the size
+  differs slightly. Do not include different products (kipfilet is not kipfiletblokjes in saus).
+- "A, B of C" deals cover each of A, B and C.
+Return an empty list only when no candidate is that product. Use only ids from the candidates.
 
 {payload}"""
 
@@ -346,7 +368,7 @@ def _parse(client, model: str, content: list[dict], schema):
 
 def extract(client, model: str, store_name: str, *, files: list[tuple[str, bytes]] = (),
             text: str = "", valid_from: str | None = None, valid_to: str | None = None):
-    """Read promotions from images / PDFs / pasted text. Returns (promos, usage)."""
+    """Read promotions from images / PDFs / pasted text. Returns (ExtractedPromos, usage)."""
     validity = f"from {valid_from} to {valid_to}" if valid_from and valid_to else "this week"
     content = _blocks_for(list(files))
     if text.strip():
@@ -354,7 +376,7 @@ def extract(client, model: str, store_name: str, *, files: list[tuple[str, bytes
     content.append({"type": "text", "text": EXTRACT_PROMPT.format(
         store=store_name, today=date.today().isoformat(), validity=validity)})
     parsed, usage = _parse(client, model, content, ExtractedPromos)
-    return parsed.promotions, usage
+    return parsed, usage
 
 
 def match(client, model: str, promos: list[ExtractedPromo], candidates: list[list[dict]]):

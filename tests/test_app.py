@@ -135,8 +135,11 @@ def test_import_dates_follow_the_store_week():
     assert at.date_input(key="valid-ah").value == promos.promo_week("ah")
 
 
-def test_import_button_waits_for_input():
+def test_import_needs_a_store_then_input():
     at = unlocked_shared()
+    button = next(b for b in at.button if b.label == "Read and import")
+    assert button.disabled and "Choose the supermarket" in texts(at)  # no default store
+    at.selectbox[0].select("dirk").run()
     button = next(b for b in at.button if b.label == "Read and import")
     assert button.disabled and "screenshots or paste text" in texts(at)
 

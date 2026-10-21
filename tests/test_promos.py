@@ -58,7 +58,7 @@ def test_match_skips_api_when_no_candidates():
 def test_extract_sends_images_pdf_and_text():
     client = FakeClient(promos.ExtractedPromos(promotions=[P()]))
     out, _ = promos.extract(client, "m", "AH", files=[("a.png", b"x"), ("b.pdf", b"y")], text="1+1 kip")
-    assert out[0].title == "Alle AH kipfilet"
+    assert out.promotions[0].title == "Alle AH kipfilet"
     content = client.calls[0]["messages"][0]["content"]
     assert [c["type"] for c in content] == ["image", "document", "text", "text"]
     assert client.calls[0]["output_format"] is promos.ExtractedPromos
@@ -75,3 +75,14 @@ def test_promo_week_per_store():
     assert promos.promo_week("jumbo", wed) == (date(2026, 10, 21), date(2026, 10, 27))
     assert promos.promo_week("jumbo", tue) == (date(2026, 10, 21), date(2026, 10, 27))
     assert promos.promo_week("jumbo", date(2026, 10, 20)) == (date(2026, 10, 14), date(2026, 10, 20))
+
+
+def test_reimporting_the_same_promotion_replaces_it(tmp_path):
+    con = promos.connect(f"sqlite:///{tmp_path / 'p.db'}")
+    promos.add(con, "dirk", P(), [1, 2], "2026-10-21", "2026-10-27", "first")
+    promos.add(con, "dirk", P(), [2, 3, 4], "2026-10-21", "2026-10-27", "second")
+    rows = promos.list_all(con)
+    assert len(rows) == 1 and rows[0]["source"] == "second"
+    assert sorted(promos.product_ids_for(con, rows[0]["id"])) == [2, 3, 4]
+    promos.add(con, "ah", P(), [1], "2026-10-21", "2026-10-27", "other store")  # different store: kept
+    assert len(promos.list_all(con)) == 2

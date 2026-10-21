@@ -217,7 +217,9 @@ with panel:
     if engine is not None:
         with st.expander(t("promos_import"), expanded=not active):
             store_options = {c: n for c, n, _ in stores}
-            store = st.selectbox(t("store"), list(store_options), format_func=lambda c: store_options[c])
+            # No default store: importing a Dirk folder as "AH" was too easy.
+            store = st.selectbox(t("store"), list(store_options), index=None,
+                                 format_func=lambda c: store_options[c], placeholder=t("store_choose"))
             # Keyed per store, so switching store resets the dates to that store's promotion week.
             valid = st.date_input(t("valid"), promos.promo_week(store), format="DD-MM-YYYY",
                                   key=f"valid-{store}")
@@ -227,9 +229,11 @@ with panel:
             if SHARED:
                 st.caption(t("promos_shared_note"))
             has_input = bool(files or text.strip())
-            if not has_input:
+            if store is None:
+                st.caption(t("import_needs_store"))
+            elif not has_input:
                 st.caption(t("import_needs_input"))
-            if st.button(t("import_button"), type="primary", disabled=not (can_call and has_input),
+            if st.button(t("import_button"), type="primary", disabled=not (can_call and has_input and store),
                          width="stretch"):
                 vf, vt = (valid[0].isoformat(), valid[1].isoformat()) if len(valid) == 2 else (None, None)
                 from grocery_agent.importer import import_promotions
@@ -249,6 +253,10 @@ with panel:
 
             res = ss.import_result
             if res:
+                if res.switched_from:
+                    names = {c: n for c, n, _ in stores}
+                    st.info(t("store_switched", chosen=names.get(res.switched_from, res.switched_from),
+                              seen=names.get(res.store, res.store)), icon=":material/swap_horiz:")
                 st.success(t("imported", n=len(res.saved)))
                 for r in res.saved:
                     more = " …" if len(r["products"]) > 4 else ""

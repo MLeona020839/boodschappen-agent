@@ -182,10 +182,14 @@ def search(
     if all(len(w) >= 3 for w in words):
         # Quote each word so FTS treats it as a literal substring.
         fts_query = " AND ".join('"' + w.replace('"', '""') + '"' for w in words)
+        # Run the full-text match first (milliseconds), then filter by store. Joined directly,
+        # SQLite walks every product of the store and runs MATCH per row: seconds per search.
         sql = f"""
-            SELECT p.*, bm25(products_fts) AS score FROM products_fts
-            JOIN products p ON p.id = products_fts.rowid
-            WHERE products_fts MATCH ? {store_filter}
+            WITH hits AS MATERIALIZED (
+                SELECT rowid, bm25(products_fts) AS score FROM products_fts WHERE products_fts MATCH ?
+            )
+            SELECT p.*, hits.score FROM hits JOIN products p ON p.id = hits.rowid
+            WHERE 1 {store_filter}
         """
         params = [fts_query, *params]
     else:  # trigram index needs >= 3 chars; fall back to LIKE

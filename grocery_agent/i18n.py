@@ -5,6 +5,9 @@ LANGUAGES = {"en": "English", "nl": "Nederlands", "zh": "中文"}
 
 TEXT: dict[str, dict[str, str]] = {
     "en": {
+        "store_choose": "Choose the supermarket",
+        "import_needs_store": "Choose the supermarket the promotions are from.",
+        "store_switched": "The folder is from {seen}, not {chosen}, so the promotions were imported for {seen}.",
         "shared_key_rejected": "The shared API key was rejected by Anthropic. If you run this app, check ANTHROPIC_API_KEY in the app's Secrets. Otherwise, click “Change key” and use your own key.",
         "gate_title": "Get started",
         "gate_body": "Tell it what you want to eat and your budget. It checks prices at 10 Dutch supermarkets and gives you a meal plan, a shopping list, and which store (or which two) is cheapest.",
@@ -94,6 +97,9 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Forgetting: {note}",
     },
     "nl": {
+        "store_choose": "Kies de supermarkt",
+        "import_needs_store": "Kies van welke supermarkt de aanbiedingen zijn.",
+        "store_switched": "De folder is van {seen}, niet van {chosen}. De aanbiedingen zijn daarom voor {seen} geïmporteerd.",
         "shared_key_rejected": "De gedeelde API-sleutel werd door Anthropic geweigerd. Beheer je deze app? Controleer dan ANTHROPIC_API_KEY in de Secrets van de app. Anders: klik op „Andere sleutel” en gebruik je eigen sleutel.",
         "gate_title": "Aan de slag",
         "gate_body": "Vertel wat je wilt eten en wat je budget is. De agent vergelijkt de prijzen bij 10 Nederlandse supermarkten en geeft je een weekmenu, een boodschappenlijst en de goedkoopste winkel (of combinatie van twee).",
@@ -176,6 +182,9 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Vergeten: {note}",
     },
     "zh": {
+        "store_choose": "选择超市",
+        "import_needs_store": "请先选择这些折扣属于哪家超市。",
+        "store_switched": "传单上是 {seen}，不是 {chosen}，所以这些折扣按 {seen} 导入了。",
         "shared_key_rejected": "共享的 API key 被 Anthropic 拒绝了。如果你是这个网站的管理者，请检查应用 Secrets 里的 ANTHROPIC_API_KEY；否则请点「更换 key」，改用你自己的 key。",
         "gate_title": "开始使用",
         "gate_body": "告诉它你想吃什么、预算多少，它会查 10 家荷兰超市的价格，给出菜单、购物清单，以及去哪家（或哪两家）买最便宜。",
