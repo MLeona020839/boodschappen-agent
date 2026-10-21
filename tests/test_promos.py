@@ -75,6 +75,8 @@ def test_promo_week_per_store():
     assert promos.promo_week("jumbo", wed) == (date(2026, 10, 21), date(2026, 10, 27))
     assert promos.promo_week("jumbo", tue) == (date(2026, 10, 21), date(2026, 10, 27))
     assert promos.promo_week("jumbo", date(2026, 10, 20)) == (date(2026, 10, 14), date(2026, 10, 20))
+    # Dirk: Wednesday to Tuesday as well (folder week 43: 21 to 27 October 2026)
+    assert promos.promo_week("dirk", wed) == (date(2026, 10, 21), date(2026, 10, 27))
 
 
 def test_reimporting_the_same_promotion_replaces_it(tmp_path):
@@ -85,4 +87,14 @@ def test_reimporting_the_same_promotion_replaces_it(tmp_path):
     assert len(rows) == 1 and rows[0]["source"] == "second"
     assert sorted(promos.product_ids_for(con, rows[0]["id"])) == [2, 3, 4]
     promos.add(con, "ah", P(), [1], "2026-10-21", "2026-10-27", "other store")  # different store: kept
+    assert len(promos.list_all(con)) == 2
+
+
+def test_reimport_with_corrected_dates_replaces_the_old_week(tmp_path):
+    con = promos.connect(f"sqlite:///{tmp_path / 'p.db'}")
+    promos.add(con, "dirk", P(), [1], "2026-10-19", "2026-10-25", "saved with AH's week")
+    promos.add(con, "dirk", P(), [1], "2026-10-21", "2026-10-27", "corrected")
+    assert [r["source"] for r in promos.list_all(con)] == ["corrected"]
+    # next week's folder with the same deal does not overlap: both are kept
+    promos.add(con, "dirk", P(), [1], "2026-10-28", "2026-11-03", "next week")
     assert len(promos.list_all(con)) == 2

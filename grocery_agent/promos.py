@@ -62,8 +62,8 @@ promotion_products = sa.Table(
 # ---------------------------------------------------------------- promotion weeks
 
 # Weekday each store's promotion week starts on (Monday = 0). AH bonus weeks run Monday to
-# Sunday; Jumbo folders run Wednesday to Tuesday. Unlisted stores default to Monday.
-WEEK_START = {"jumbo": 2}
+# Sunday; Jumbo and Dirk folders run Wednesday to Tuesday. Unlisted stores default to Monday.
+WEEK_START = {"jumbo": 2, "dirk": 2}
 
 
 def promo_week(store: str, today: date | None = None) -> tuple[date, date]:
@@ -178,12 +178,16 @@ def add(engine: sa.Engine, store: str, extracted: "ExtractedPromo", product_ids:
         valid_from: str | None, valid_to: str | None, source: str) -> int:
     vf, vt = extracted.valid_from or valid_from, extracted.valid_to or valid_to
     with engine.begin() as con:
-        # Importing the same folder again replaces its promotions instead of duplicating them.
+        # Importing the same promotion again replaces it instead of duplicating it, also when
+        # the dates were corrected (e.g. a Dirk folder first saved as Monday to Sunday).
+        # "Same" = same store, title and deal, with validity periods that overlap.
         c = promotions.c
-        _delete_where(con, sa.and_(c.store == store, c.title == extracted.title,
-                                   c.label == extracted.label,
-                                   c.valid_from.is_(None) if vf is None else c.valid_from == vf,
-                                   c.valid_to.is_(None) if vt is None else c.valid_to == vt))
+        overlap = [c.store == store, c.title == extracted.title, c.label == extracted.label]
+        if vt is not None:
+            overlap.append(sa.or_(c.valid_from.is_(None), c.valid_from <= vt))
+        if vf is not None:
+            overlap.append(sa.or_(c.valid_to.is_(None), c.valid_to >= vf))
+        _delete_where(con, sa.and_(*overlap))
         pid = con.execute(sa.insert(promotions).values(
             store=store, title=extracted.title, label=extracted.label, kind=extracted.kind,
             percent=extracted.percent, price=extracted.price, buy=extracted.buy, pay=extracted.pay,
