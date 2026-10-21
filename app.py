@@ -10,6 +10,7 @@ grocery_agent/settings.py.
 from __future__ import annotations
 
 import hmac
+import importlib
 from datetime import timedelta
 
 import anthropic
@@ -17,9 +18,13 @@ import sqlalchemy as sa
 import streamlit as st
 
 from grocery_agent import agent as agent_mod
-from grocery_agent import db, prefs, promos, settings
+from grocery_agent import db, i18n, prefs, promos, settings
 from grocery_agent.agent import PRICE, Agent
-from grocery_agent.i18n import EXAMPLES, LANGUAGES, translator
+
+# After a git push, Streamlit Cloud reruns app.py but can keep older copies of imported modules.
+# The UI strings change most often and hold no state, so always load the current ones.
+i18n = importlib.reload(i18n)
+EXAMPLES, LANGUAGES, translator = i18n.EXAMPLES, i18n.LANGUAGES, i18n.translator
 
 st.set_page_config(page_title="Boodschappen Agent", page_icon="🛒", layout="wide")
 
