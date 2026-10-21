@@ -20,8 +20,9 @@ cheapest across 10 Dutch supermarkets (AH, Jumbo, Lidl, Plus, Dirk and more, abo
   Claude reads the deals, matches them to products, and pricing then applies
   1+1 gratis, "2 voor €5", 25% korting, 2e halve prijs and plain price cuts.
 - **Remembers preferences**: household size, dislikes, favourite stores.
-- **Shareable**: friends use their own API key, or yours behind an access code with a per-session spend cap.
-- **English, Dutch or Chinese UI** (switch in the sidebar, or link to `?lang=Nederlands` / `?lang=中文`); the agent replies in whatever language you write.
+- **Shareable**: visitors unlock it with their own API key (checked for free before use), or with an access code for yours, with a per-session spend cap.
+- **English, Dutch or Chinese UI** (switch top right, or link to `?lang=Nederlands` / `?lang=中文`); the agent replies in whatever language you write.
+- **Chat on the left, tools on the right**: drop screenshots from the bottom-right corner of your screen straight onto the promotion upload box.
 
 ## How it works
 
@@ -60,13 +61,14 @@ the model calls as a tool. The model never adds up prices itself.
 
 ## Testing
 
-73 tests (`pytest -q`):
+84 tests (`pytest -q`):
 
 - unit-size parsing, knapsack and promotion pricing, single/two-store comparison
 - database build, search ranking, and id stability across refreshes
 - promotion storage on SQLite and on **real Postgres** (via `pgserver`, optional)
 - the agent tool loop against a **mocked Messages API** (request shape, history, per-session preferences)
-- the Streamlit UI headless with `AppTest` (key modes, access code, spend cap, per-session preferences, language switch)
+- the Streamlit UI headless with `AppTest` (unlock gate, access code, spend cap, per-session preferences, store promotion weeks, language switch)
+- graceful degradation when the promotions database is unreachable (e.g. a paused Supabase project)
 
 Live checks: a four-item, ten-store comparison took about 1 minute and cost about **$0.19**;
 importing three promotions cost under $0.02.

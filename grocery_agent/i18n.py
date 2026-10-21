@@ -5,25 +5,34 @@ LANGUAGES = {"en": "English", "nl": "Nederlands", "zh": "中文"}
 
 TEXT: dict[str, dict[str, str]] = {
     "en": {
-        "import_needs_key": "↑ Enter your API key at the top of the sidebar first.",
-        "import_needs_key_or_code": "↑ Enter an API key or access code at the top of the sidebar first.",
+        "gate_title": "Get started",
+        "gate_body": "Tell it what you want to eat and your budget. It checks prices at 10 Dutch supermarkets and gives you a meal plan, a shopping list, and which store (or which two) is cheapest.",
+        "gate_code": "Access code",
+        "gate_code_help": "Got an access code from whoever shared this app? Enter it here.",
+        "gate_or": "or use your own key",
+        "gate_key": "Anthropic API key",
+        "gate_start": "Start",
+        "gate_empty": "Enter an access code or an API key.",
+        "gate_empty_key": "Enter your API key.",
+        "gate_bad_key": "That API key was rejected. Please check it.",
+        "gate_unverified": "Could not check the key right now; trying it anyway.",
+        "gate_get_key": "No key yet? Create one under API Keys at [console.anthropic.com](https://console.anthropic.com) after adding credit. Usage is billed to your own account; planning a week of dinners costs about $0.10–0.50.",
+        "change_key": "Change key",
+        "active_promos": "Active promotions ({n})",
+        "prefs_count": "My preferences ({n})",
+        "panel_more": "Prices and spend",
         "import_needs_input": "Add screenshots or paste text to import.",
         "promos_unavailable": "The promotions database can't be reached right now, so regular prices are used. If it is a free Supabase project, it may be paused: restore it in the Supabase dashboard.",
         "api_key_header": "API key",
-        "api_key_label": "Anthropic API key",
         "title": "What's for dinner, and where is it cheapest?",
         "language": "Language",
         # API key
-        "own_key_expander": "Use your own API key",
         "key_help": "Kept only in this browser tab: never written to disk or visible to anyone else. "
                     "Create one under API Keys at console.anthropic.com.",
         "access_code": "Or enter an access code to use the shared key",
         "access_wrong": "That access code is not right.",
         "using_own_key": "Using your own key",
         "using_shared_key": "Using the shared key · this session ${spent:.2f} / ${budget:.2f}",
-        "using_local_key": "Using ANTHROPIC_API_KEY from this computer",
-        "need_key": "Enter your API key to get started.",
-        "need_key_or_code": "Enter your API key or an access code to get started.",
         # prices
         "prices": "Prices",
         "prices_caption": "Data from {date} · {stores} supermarkets · {products:,} products · refreshed daily",
@@ -62,25 +71,15 @@ TEXT: dict[str, dict[str, str]] = {
         "usage_caption": "≈ ${cost:.3f} · chat input {inp:,} / output {out:,} tokens",
         "new_chat": "🆕 New conversation",
         # chat
-        "intro_title": "How it works",
-        "intro_body": "Tell it what you want to eat and your budget. It checks prices at 10 Dutch "
-                      "supermarkets and gives you a meal plan, a shopping list, and which store "
-                      "(or which two) is cheapest.\n\n"
-                      "**Before you start**: open the sidebar (on a phone, tap **»** top left). {how_key} "
-                      "You can create a key at [console.anthropic.com](https://console.anthropic.com) "
-                      "after signing up and adding credit. Usage is billed to your own account; "
-                      "planning a week of dinners costs about $0.10–0.50.",
-        "intro_with_code": "If someone gave you an access code, just enter that. Otherwise enter your own Anthropic API key.",
-        "intro_own_key": "Enter your Anthropic API key.",
         "over_budget": "The shared key's budget for this session (${budget:.2f}) is used up. "
-                       "You can keep going by entering your own API key in the sidebar.",
+                       "Click “Change key” on the right to continue with your own API key.",
         "steps": "How I got there ({n} steps)",
         "chat_placeholder": "Ask in English, Dutch, Chinese…",
         "thinking": "Thinking…",
         "working": "Checking prices… ({n} steps)",
         "done": "Done ({n} steps)",
         "error": "Something went wrong",
-        "err_auth": "The API key is not valid. Please check it in the sidebar.",
+        "err_auth": "The API key is not valid. Click “Change key” on the right to enter another one.",
         "err_rate": "Too many requests. Please wait a moment and try again.",
         "err_status": "API error ({code}): {message}",
         "err_conn": "Could not reach the API. Please check your connection.",
@@ -94,24 +93,33 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Forgetting: {note}",
     },
     "nl": {
-        "import_needs_key": "↑ Vul eerst bovenaan de zijbalk je API-sleutel in.",
-        "import_needs_key_or_code": "↑ Vul eerst bovenaan de zijbalk een API-sleutel of toegangscode in.",
+        "gate_title": "Aan de slag",
+        "gate_body": "Vertel wat je wilt eten en wat je budget is. De agent vergelijkt de prijzen bij 10 Nederlandse supermarkten en geeft je een weekmenu, een boodschappenlijst en de goedkoopste winkel (of combinatie van twee).",
+        "gate_code": "Toegangscode",
+        "gate_code_help": "Heb je een toegangscode gekregen van degene die deze app deelt? Vul hem hier in.",
+        "gate_or": "of gebruik je eigen sleutel",
+        "gate_key": "Anthropic API-sleutel",
+        "gate_start": "Starten",
+        "gate_empty": "Vul een toegangscode of API-sleutel in.",
+        "gate_empty_key": "Vul je API-sleutel in.",
+        "gate_bad_key": "Die API-sleutel werd geweigerd. Controleer hem.",
+        "gate_unverified": "De sleutel kon nu niet worden gecontroleerd; we proberen hem toch.",
+        "gate_get_key": "Nog geen sleutel? Maak er een aan onder API Keys op [console.anthropic.com](https://console.anthropic.com) nadat je tegoed hebt toegevoegd. De kosten gaan van je eigen account af; een week avondeten plannen kost ongeveer $0,10–0,50.",
+        "change_key": "Andere sleutel",
+        "active_promos": "Actieve aanbiedingen ({n})",
+        "prefs_count": "Mijn voorkeuren ({n})",
+        "panel_more": "Prijzen en kosten",
         "import_needs_input": "Voeg screenshots toe of plak tekst om te importeren.",
         "promos_unavailable": "De aanbiedingendatabase is nu niet bereikbaar, dus er wordt met normale prijzen gerekend. Is het een gratis Supabase-project, dan is het misschien gepauzeerd: herstel het in het Supabase-dashboard.",
         "api_key_header": "API-sleutel",
-        "api_key_label": "Anthropic API-sleutel",
         "title": "Wat eten we, en waar is het het goedkoopst?",
         "language": "Taal",
-        "own_key_expander": "Je eigen API-sleutel gebruiken",
         "key_help": "Wordt alleen in dit browsertabblad bewaard: nooit opgeslagen en voor niemand anders zichtbaar. "
                     "Maak er een aan onder API Keys op console.anthropic.com.",
         "access_code": "Of vul een toegangscode in om de gedeelde sleutel te gebruiken",
         "access_wrong": "Die toegangscode klopt niet.",
         "using_own_key": "Je gebruikt je eigen sleutel",
         "using_shared_key": "Je gebruikt de gedeelde sleutel · deze sessie ${spent:.2f} / ${budget:.2f}",
-        "using_local_key": "ANTHROPIC_API_KEY van deze computer wordt gebruikt",
-        "need_key": "Vul je API-sleutel in om te beginnen.",
-        "need_key_or_code": "Vul je API-sleutel of een toegangscode in om te beginnen.",
         "prices": "Prijzen",
         "prices_caption": "Gegevens van {date} · {stores} supermarkten · {products:,} producten · dagelijks bijgewerkt",
         "prices_update": "⬇️ Prijzen nu bijwerken",
@@ -145,25 +153,15 @@ TEXT: dict[str, dict[str, str]] = {
         "usage": "Kosten deze sessie",
         "usage_caption": "≈ ${cost:.3f} · invoer {inp:,} / uitvoer {out:,} tokens",
         "new_chat": "🆕 Nieuw gesprek",
-        "intro_title": "Zo werkt het",
-        "intro_body": "Vertel wat je wilt eten en wat je budget is. De agent vergelijkt de prijzen bij 10 "
-                      "Nederlandse supermarkten en geeft je een weekmenu, een boodschappenlijst en de "
-                      "goedkoopste winkel (of combinatie van twee).\n\n"
-                      "**Voordat je begint**: open de zijbalk (op je telefoon: tik linksboven op **»**). {how_key} "
-                      "Een sleutel maak je aan op [console.anthropic.com](https://console.anthropic.com), "
-                      "nadat je je hebt aangemeld en tegoed hebt toegevoegd. De kosten gaan van je eigen account af; "
-                      "een week avondeten plannen kost ongeveer $0,10–0,50.",
-        "intro_with_code": "Heb je een toegangscode gekregen? Vul die dan in. Anders vul je je eigen Anthropic API-sleutel in.",
-        "intro_own_key": "Vul je Anthropic API-sleutel in.",
         "over_budget": "Het budget van de gedeelde sleutel voor deze sessie (${budget:.2f}) is op. "
-                       "Je kunt verder door je eigen API-sleutel in de zijbalk in te vullen.",
+                       "Klik rechts op „Andere sleutel” om verder te gaan met je eigen API-sleutel.",
         "steps": "Zo kwam ik erop ({n} stappen)",
         "chat_placeholder": "Vraag het in het Nederlands, Engels, Chinees…",
         "thinking": "Even nadenken…",
         "working": "Prijzen vergelijken… ({n} stappen)",
         "done": "Klaar ({n} stappen)",
         "error": "Er ging iets mis",
-        "err_auth": "De API-sleutel is ongeldig. Controleer hem in de zijbalk.",
+        "err_auth": "De API-sleutel is ongeldig. Klik rechts op „Andere sleutel” om een andere in te vullen.",
         "err_rate": "Te veel verzoeken. Wacht even en probeer het opnieuw.",
         "err_status": "API-fout ({code}): {message}",
         "err_conn": "Kan de API niet bereiken. Controleer je internetverbinding.",
@@ -176,24 +174,33 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Vergeten: {note}",
     },
     "zh": {
-        "import_needs_key": "↑ 请先在侧边栏最上方填写你的 API key。",
-        "import_needs_key_or_code": "↑ 请先在侧边栏最上方填写 API key 或邀请码。",
+        "gate_title": "开始使用",
+        "gate_body": "告诉它你想吃什么、预算多少，它会查 10 家荷兰超市的价格，给出菜单、购物清单，以及去哪家（或哪两家）买最便宜。",
+        "gate_code": "邀请码",
+        "gate_code_help": "分享这个网站的人给了你邀请码？填在这里。",
+        "gate_or": "或者使用你自己的 key",
+        "gate_key": "Anthropic API key",
+        "gate_start": "开始",
+        "gate_empty": "请填写邀请码或 API key。",
+        "gate_empty_key": "请填写你的 API key。",
+        "gate_bad_key": "这个 API key 无效，请检查。",
+        "gate_unverified": "暂时无法验证这个 key，先直接试用。",
+        "gate_get_key": "还没有 key？在 [console.anthropic.com](https://console.anthropic.com) 充值后，到 API Keys 页面创建。费用按用量算在你自己的账户上，规划一周菜单大约 $0.1–0.5。",
+        "change_key": "更换 key",
+        "active_promos": "当前折扣（{n} 条）",
+        "prefs_count": "我的偏好（{n} 条）",
+        "panel_more": "价格数据和花费",
         "import_needs_input": "上传截图或粘贴文字后即可导入。",
         "promos_unavailable": "现在连不上折扣数据库，暂时按常规价格比价。如果用的是免费的 Supabase 项目，可能是被暂停了，请到 Supabase 控制台里恢复。",
         "api_key_header": "API key",
-        "api_key_label": "Anthropic API key",
         "title": "这周吃什么，去哪买最便宜？",
         "language": "语言",
-        "own_key_expander": "使用自己的 API key",
         "key_help": "只保存在你这次打开的页面里，不会写入文件，也不会被其他人看到。"
                     "在 console.anthropic.com 的 API Keys 页面创建。",
         "access_code": "或者输入邀请码，使用共享 key",
         "access_wrong": "邀请码不对",
         "using_own_key": "正在使用你自己的 key",
         "using_shared_key": "正在使用共享 key · 本次额度 ${spent:.2f} / ${budget:.2f}",
-        "using_local_key": "正在使用本机的 ANTHROPIC_API_KEY",
-        "need_key": "请填写你的 API key，然后就可以开始了。",
-        "need_key_or_code": "请填写你的 API key 或邀请码，然后就可以开始了。",
         "prices": "价格数据",
         "prices_caption": "数据日期 {date} · {stores} 家超市 · {products:,} 个商品 · 每天自动更新",
         "prices_update": "⬇️ 立即更新价格",
@@ -227,23 +234,15 @@ TEXT: dict[str, dict[str, str]] = {
         "usage": "本次花费",
         "usage_caption": "约 ${cost:.3f} · 对话输入 {inp:,} / 输出 {out:,} tokens",
         "new_chat": "🆕 新对话",
-        "intro_title": "怎么用",
-        "intro_body": "告诉它你想吃什么、预算多少，它会查 10 家荷兰超市的价格，给出菜单、购物清单，"
-                      "以及去哪家（或哪两家）买最便宜。\n\n"
-                      "**开始前**：打开左侧边栏（手机上点左上角的 **»**）。{how_key}"
-                      "API key 可以在 [console.anthropic.com](https://console.anthropic.com) 注册、充值后，"
-                      "在 API Keys 页面创建，费用按用量算在你自己的账户上，规划一周菜单大约 $0.1–0.5。",
-        "intro_with_code": "如果有人给了你邀请码，直接填邀请码就行；否则请填写你自己的 Anthropic API key。",
-        "intro_own_key": "请填写你的 Anthropic API key。",
         "over_budget": "共享 key 在这次会话里的额度（${budget:.2f}）已经用完。"
-                       "可以在左侧填写你自己的 API key 继续使用。",
+                       "点右侧的「更换 key」，换成你自己的 API key 继续使用。",
         "steps": "查询过程（{n} 步）",
         "chat_placeholder": "用中文、英文或荷兰语提问…",
         "thinking": "正在思考…",
         "working": "正在查价…（{n} 步）",
         "done": "完成（{n} 步）",
         "error": "出错了",
-        "err_auth": "API key 无效，请在左侧检查你填写的 key。",
+        "err_auth": "API key 无效，请点右侧的「更换 key」重新填写。",
         "err_rate": "请求太频繁，请稍等一会儿再试。",
         "err_status": "API 出错（{code}）：{message}",
         "err_conn": "连不上 API，请检查网络。",
@@ -284,6 +283,8 @@ def translator(lang: str):
 
     def t(key: str, **kwargs) -> str:
         text = table.get(key) or TEXT["en"][key]
-        return text.format(**kwargs) if kwargs else text
+        text = text.format(**kwargs) if kwargs else text
+        # Streamlit renders these as Markdown, where "$1.00 / $2.00" would become LaTeX.
+        return text.replace("$", "\\$")
 
     return t

@@ -20,3 +20,8 @@ def test_every_language_has_every_string_with_the_same_placeholders(lang):
 def test_translator_formats_and_falls_back_to_english():
     assert translator("nl")("imported", n=3) == "3 aanbiedingen geïmporteerd"
     assert translator("xx")("title") == TEXT["en"]["title"]
+
+
+def test_dollar_signs_are_escaped_for_markdown():
+    text = translator("en")("using_shared_key", spent=0.5, budget=1)
+    assert "\\$0.50" in text and "\\$1.00" in text

@@ -41,7 +41,9 @@ def test_app_shows_warning_instead_of_crashing(dead_db, monkeypatch):
     monkeypatch.setattr(db, "ensure_fresh", lambda **kw: False)
     at = AppTest.from_file(str(Path(__file__).resolve().parent.parent / "app.py"), default_timeout=30)
     at.secrets["SHARED_DEPLOYMENT"] = "true"
+    at.secrets["ANTHROPIC_API_KEY"] = "sk-ant-server"  # no access code: opens straight to the app
     at.secrets["PROMOS_DATABASE_URL"] = DEAD_URL
     at.run()
     assert not at.exception
-    assert any("promotions database" in w.value for w in at.sidebar.warning)
+    assert any("promotions database" in w.value for w in at.warning)
+    assert len(at.chat_input) == 1  # chatting still works

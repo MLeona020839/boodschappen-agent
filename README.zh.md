@@ -24,7 +24,7 @@ export ANTHROPIC_API_KEY=...                # 你的 Anthropic API key（建议�
 
 ### 导入每周折扣（bonus）
 
-在网页左侧「导入折扣」里选择超市和有效期，然后上传传单截图、照片或 PDF，
+在网页右侧「导入折扣」里选择超市（有效期会按这家超市的折扣周自动填好），然后上传传单截图、照片或 PDF，
 或者粘贴 ah.nl/bonus 等页面复制下来的文字，再点「识别并导入」。Claude 会读出每条折扣，
 匹配到商品库里的具体商品；之后比价时会自动按折扣计算。导入一页传单大约花费 $0.02–0.05。
 
@@ -67,7 +67,7 @@ app.py：Streamlit 界面（对话、查询过程、折扣导入、偏好管理�
 | `basket.py` | 1+1、“2 voor €5” 让价格不再和数量成正比 | 把折扣变成额外的“捆绑包”选项放进同一个 DP；同价时优先多拿 |
 | `promos.py` | 每天刷新价格不能把折扣冲掉 | 折扣单独存 `promotions.db`，靠稳定商品 ID 关联 |
 
-界面默认是英文，侧边栏顶部可以切换成荷兰语或中文；也可以直接用带 `?lang=Nederlands` 或 `?lang=中文` 的链接打开对应语言。
+界面默认是英文，右上角可以切换成荷兰语或中文；也可以直接用带 `?lang=Nederlands` 或 `?lang=中文` 的链接打开对应语言。
 
 ## 分享给朋友（部署到 Streamlit Community Cloud）
 
@@ -75,7 +75,7 @@ app.py：Streamlit 界面（对话、查询过程、折扣导入、偏好管理�
 2. 在 share.streamlit.io 用这个仓库创建应用，入口文件选 `app.py`。
 3. 在 Advanced settings → Secrets 里填写配置，参考 `.streamlit/secrets.example.toml`：
    - `SHARED_DEPLOYMENT = "true"`：每位访客的偏好单独保存，价格自动更新。
-   - 朋友默认在侧边栏填写**自己的** API key，只保存在他们自己的会话里。
+   - 打开网站时，页面中间会先要求填写邀请码或**自己的** API key（会先免费验证 key 是否有效），key 只保存在各自的会话里。
    - 可选：`ANTHROPIC_API_KEY` + `ACCESS_CODE` 让知道邀请码的人用你的 key，
      并用 `SESSION_BUDGET_USD` 限制每个会话的花费（默认 $1）。
    - 可选：`PROMOS_DATABASE_URL` 填 Supabase 等 Postgres 地址，让导入的折扣在重启后保留。
@@ -86,7 +86,7 @@ app.py：Streamlit 界面（对话、查询过程、折扣导入、偏好管理�
 .venv/bin/pytest -q
 ```
 
-共 73 个测试：规格解析、包装组合与折扣计算、单店/两店比价、搜索排序、ID 稳定性、
+共 84 个测试：规格解析、包装组合与折扣计算、单店/两店比价、搜索排序、ID 稳定性、
 折扣存储（SQLite 和真实 Postgres）、模拟 API 下的 agent 循环、无头运行的 Streamlit 界面测试。
 
 ## 已知局限 / 下一步

@@ -66,6 +66,19 @@ def system_prompt() -> str:
     )
 
 
+def check_key(key: str) -> bool | None:
+    """True if the API key works, False if it is rejected, None if we could not tell (offline).
+
+    Uses the free model listing endpoint, so checking a key costs nothing."""
+    try:
+        anthropic.Anthropic(api_key=key, max_retries=0, timeout=10).models.list(limit=1)
+        return True
+    except (anthropic.AuthenticationError, anthropic.PermissionDeniedError):
+        return False
+    except anthropic.APIError:
+        return None
+
+
 ToolCallback = Callable[[str, dict], None]
 
 
