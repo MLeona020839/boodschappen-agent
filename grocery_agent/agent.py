@@ -1,0 +1,166 @@
+"""Chat loop: Claude + tools, keeping conversation history across turns."""
+from __future__ import annotations
+
+import json
+from datetime import date
+from typing import Callable
+
+import anthropic
+
+from . import db, prefs, promos
+from .tools import ALL_TOOLS
+
+MODEL = "claude-opus-5-5"
+# claude-opus-5-5, $ per million tokens
+PRICE = {"input": 4.00, "output": 20.00, "cache_read": 0.20, "cache_write": 5.00}
+
+SYSTEM_TEMPLATE = """You are a grocery and meal-planning assistant for someone living in the Netherlands.
+You help them plan meals, build shopping lists, and find where to buy them cheapest.
+
+Data: regular shelf prices from {n_stores} Dutch supermarkets (snapshot of {data_date}).
+Promotions: {promo_summary}
+Product names are in Dutch; search in Dutch even when the user writes in another language.
+
+How to work:
+- For each ingredient, search for it and choose products that are genuinely the same thing
+  (e.g. 'kipfilet' is plain chicken breast, not 'kipfilet salade' or a ready meal). Include
+  candidates from several stores so stores can be compared.
+- Always get totals from price_shopping_list. Do not add up or multiply prices yourself.
+  It applies imported promotions automatically (e.g. 1+1 gratis), so let it decide pack counts.
+- When promotions are available and the user is planning meals, check list_promotions first
+  and prefer recipes built around what is on sale.
+- Convert recipe amounts to grams, millilitres or pieces for needed_qty, for the whole plan
+  (e.g. 3 dinners x 150 g chicken for 2 people = 900 g).
+- Respect the user's saved preferences. When the user states a lasting preference (household
+  size, diet, dislikes, favourite stores, budget), save it with remember_preference.
+- Reply in the user's language. Keep answers practical: a meal plan, then a shopping list
+  grouped by store with prices, the total, and the cheaper alternative if splitting stores
+  saves real money. Mention products whose pack size was unknown, since their cost is an estimate.
+
+Today is {today}.
+
+Saved user preferences:
+{preferences}"""
+
+
+def system_prompt() -> str:
+    con = db.connect()
+    notes = prefs.load()
+    active = promos.list_active(promos.connect())
+    if active:
+        by_store: dict[str, int] = {}
+        for pr in active:
+            by_store[pr["store"]] = by_store.get(pr["store"], 0) + 1
+        promo_summary = ("imported for " + ", ".join(f"{s} ({n})" for s, n in sorted(by_store.items()))
+                         + "; other stores show regular prices only.")
+    else:
+        promo_summary = "none imported this week, so prices are regular prices; say so when it matters."
+    return SYSTEM_TEMPLATE.format(
+        n_stores=len(db.stores(con)),
+        data_date=db.data_date(con),
+        promo_summary=promo_summary,
+        today=date.today().isoformat(),
+        preferences="\n".join(f"- {n}" for n in notes) if notes else "(none yet)",
+    )
+
+
+ToolCallback = Callable[[str, dict], None]
+
+
+def _print_tool(name: str, args: dict) -> None:
+    text = json.dumps(args, ensure_ascii=False)
+    print(f"  · {name}({text[:120]}{'…' if len(text) > 120 else ''})")
+
+
+class Agent:
+    def __init__(self, client: anthropic.Anthropic | None = None,
+                 on_tool: ToolCallback | None = _print_tool):
+        self.client = client or anthropic.Anthropic()
+        self.messages: list = []
+        self.on_tool = on_tool
+        self.usage = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
+
+    @property
+    def cost(self) -> float:
+        """Estimated spend so far in US dollars."""
+        return sum(self.usage[k] * PRICE[k] for k in PRICE) / 1_000_000
+
+    def ask(self, user_text: str) -> str:
+        self.messages.append({"role": "user", "content": user_text})
+        runner = self.client.beta.messages.tool_runner(
+            model=MODEL,
+            max_tokens=16000,
+            system=system_prompt(),
+            tools=ALL_TOOLS,
+            messages=list(self.messages),
+            thinking={"type": "adaptive"},
+            output_config={"effort": "medium"},
+            cache_control={"type": "ephemeral"},
+            betas=["server-side-fallback-2026-07-01"],
+            fallbacks="default",
+        )
+        last = None
+        for message in runner:
+            last = message
+            self._track(message)
+            # Mirror history: the runner keeps its own copy and doesn't expose it.
+            self.messages.append({"role": "assistant", "content": message.content})
+            for block in message.content:
+                if block.type == "tool_use" and self.on_tool:
+                    self.on_tool(block.name, block.input)
+            tool_response = runner.generate_tool_call_response()
+            if tool_response is not None:
+                self.messages.append(tool_response)
+
+        if last is None:
+            return ""
+        if last.stop_reason == "refusal":
+            return "(The model declined this request.)"
+        text = "\n".join(b.text for b in last.content if b.type == "text").strip()
+        if last.stop_reason == "max_tokens":
+            text += "\n\n(Answer was cut off; ask me to continue.)"
+        return text
+
+    def _track(self, message) -> None:
+        u = message.usage
+        self.usage["input"] += u.input_tokens or 0
+        self.usage["output"] += u.output_tokens or 0
+        self.usage["cache_read"] += getattr(u, "cache_read_input_tokens", 0) or 0
+        self.usage["cache_write"] += getattr(u, "cache_creation_input_tokens", 0) or 0
+
+
+def chat() -> None:
+    agent = Agent()
+    print("Boodschappen-agent. Ask in any language. Type 'exit' to quit.\n")
+    while True:
+        try:
+            user = input("you › ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if user.lower() in {"exit", "quit", "q"}:
+            break
+        if not user:
+            continue
+        checkpoint = len(agent.messages)
+        try:
+            answer = agent.ask(user)
+        except anthropic.AuthenticationError:
+            print("No valid API key. Set ANTHROPIC_API_KEY and try again.")
+            return
+        except anthropic.RateLimitError:
+            print("Rate limited; wait a moment and try again.")
+            del agent.messages[checkpoint:]  # drop the half-finished turn
+            continue
+        except anthropic.APIStatusError as e:
+            print(f"API error {e.status_code}: {e.message}")
+            del agent.messages[checkpoint:]  # drop the half-finished turn
+            continue
+        except anthropic.APIConnectionError:
+            print("Could not reach the API; check your connection.")
+            del agent.messages[checkpoint:]  # drop the half-finished turn
+            continue
+        print(f"\nagent › {answer}\n")
+    u = agent.usage
+    print(f"tokens: in {u['input']}, out {u['output']}, cache read {u['cache_read']}, "
+          f"cache write {u['cache_write']} ≈ ${agent.cost:.3f}")

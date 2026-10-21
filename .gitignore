@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local data: downloaded prices, your preferences and imported promotions
+data/
+
+# Secrets (Streamlit)
+.streamlit/secrets.toml
+.env
+
+# Editor / assistant configuration
+.claude/
+.agents/
+.DS_Store
