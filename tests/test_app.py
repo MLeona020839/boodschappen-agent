@@ -48,7 +48,7 @@ def test_shared_without_any_key_asks_for_one():
     at = run(SHARED_DEPLOYMENT="true")
     assert not at.exception
     assert chat_disabled(at)
-    assert "请填写你的 API key" in sidebar_text(at)
+    assert "请填写你的 API key" in sidebar_text(at) and "邀请码" not in sidebar_text(at)
 
 
 def test_own_key_enables_chat():

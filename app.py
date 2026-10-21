@@ -131,7 +131,7 @@ with st.sidebar:
     elif key_mode == "server":
         st.caption("正在使用本机的 ANTHROPIC_API_KEY")
     else:
-        st.warning("请填写你的 API key" + ("或邀请码" if SERVER_KEY and ACCESS_CODE else "") + " 才能开始。")
+        st.warning("请填写你的 API key" + (" 或邀请码" if SERVER_KEY and ACCESS_CODE else "") + "，然后就可以开始了。")
     can_call = client is not None and not over_budget
 
     # ------------------------------------------------------------ price data
@@ -240,11 +240,13 @@ with st.sidebar:
 st.title("这周吃什么，去哪买最便宜？")
 
 if client is None:
+    invite = "如果有人给了你邀请码，直接填邀请码就行。否则请填写你自己的 Anthropic API key：" \
+        if SERVER_KEY and ACCESS_CODE else "请填写你的 Anthropic API key。"
     st.info(
         "告诉它你想吃什么、预算多少，它会查 10 家荷兰超市的价格，给出菜单、购物清单，"
         "以及去哪家（或哪两家）买最便宜。\n\n"
-        "**开始前**：在左侧填写你的 Anthropic API key。没有的话，可以在 "
-        "[console.anthropic.com](https://console.anthropic.com) 注册、充值后，在 API Keys 页面创建。"
+        "**开始前**：打开左侧边栏（手机上点左上角的 **»**），" + invite +
+        "可以在 [console.anthropic.com](https://console.anthropic.com) 注册、充值后，在 API Keys 页面创建，"
         "费用按用量算在你自己的账户上，规划一周菜单大约 $0.1–0.5。",
         title="怎么用", icon=":material/waving_hand:",
     )
