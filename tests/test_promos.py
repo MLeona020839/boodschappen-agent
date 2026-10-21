@@ -11,7 +11,7 @@ def P(**kw):
 
 
 def test_storage_and_validity(tmp_path):
-    con = promos.connect(tmp_path / "p.db")
+    con = promos.connect(f"sqlite:///{tmp_path / 'p.db'}")
     promos.add(con, "ah", P(), [1, 2], "2026-10-19", "2026-10-25", "test")
     promos.add(con, "ah", P(title="Oud"), [3], "2026-10-12", "2026-10-18", "test")
     active = promos.list_active(con, today="2026-10-20")
@@ -27,7 +27,7 @@ def test_storage_and_validity(tmp_path):
 
 
 def test_dates_printed_on_folder_override_defaults(tmp_path):
-    con = promos.connect(tmp_path / "p.db")
+    con = promos.connect(f"sqlite:///{tmp_path / 'p.db'}")
     promos.add(con, "ah", P(valid_to="2026-10-22"), [1], "2026-10-19", "2026-10-25", "test")
     assert promos.list_all(con)[0]["valid_to"] == "2026-10-22"
 

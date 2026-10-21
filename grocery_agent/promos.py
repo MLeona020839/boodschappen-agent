@@ -1,8 +1,10 @@
 """Weekly promotions (bonus / aanbiedingen).
 
 Promotions are imported from a folder photo, screenshot, PDF or pasted text: Claude reads
-them, then matches each one to products in the price database. They live in their own
-SQLite file so a daily price refresh never wipes them (product ids are stable).
+them, then matches each one to products in the price database. They are stored apart from
+the prices (local SQLite by default, or any SQLAlchemy URL such as a Supabase Postgres
+database via PROMOS_DATABASE_URL), so a daily price refresh never wipes them; product ids
+are stable across refreshes.
 
 Supported mechanisms and how they price out:
     percent_off        25% korting               -> every pack at (1 - p) x price
@@ -16,42 +18,43 @@ from __future__ import annotations
 
 import base64
 import json
-import sqlite3
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 from typing import Literal, Optional
 
+import sqlalchemy as sa
 from pydantic import BaseModel, Field
 
+from . import settings
 from .db import DATA_DIR
 
-PROMOS_DB = DATA_DIR / "promotions.db"
+DEFAULT_URL = f"sqlite:///{DATA_DIR / 'promotions.db'}"
 
 Kind = Literal["percent_off", "promo_price", "buy_x_pay_y", "x_for_price", "second_half_price", "other"]
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS promotions (
-    id          INTEGER PRIMARY KEY,
-    store       TEXT NOT NULL,
-    title       TEXT NOT NULL,      -- as printed, e.g. 'Alle AH kipfilet'
-    label       TEXT NOT NULL,      -- mechanism as printed, e.g. '1+1 gratis'
-    kind        TEXT NOT NULL,
-    percent     REAL,
-    price       REAL,               -- promo_price: per pack; x_for_price: bundle total
-    buy         INTEGER,            -- buy_x_pay_y: x / x_for_price: x
-    pay         INTEGER,            -- buy_x_pay_y: y
-    valid_from  TEXT,               -- ISO date, NULL = unknown
-    valid_to    TEXT,
-    source      TEXT,
-    created_at  TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS promotion_products (
-    promotion_id INTEGER NOT NULL REFERENCES promotions(id) ON DELETE CASCADE,
-    product_id   INTEGER NOT NULL,
-    PRIMARY KEY (promotion_id, product_id)
-);
-"""
+metadata = sa.MetaData()
+promotions = sa.Table(
+    "promotions", metadata,
+    sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column("store", sa.String(32), nullable=False),
+    sa.Column("title", sa.Text, nullable=False),   # as printed, e.g. 'Alle AH kipfilet'
+    sa.Column("label", sa.Text, nullable=False),   # mechanism as printed, e.g. '1+1 gratis'
+    sa.Column("kind", sa.String(32), nullable=False),
+    sa.Column("percent", sa.Float),
+    sa.Column("price", sa.Float),                  # promo_price: per pack; x_for_price: bundle total
+    sa.Column("buy", sa.Integer),                  # buy_x_pay_y: x / x_for_price: x
+    sa.Column("pay", sa.Integer),                  # buy_x_pay_y: y
+    sa.Column("valid_from", sa.String(10)),        # ISO date, NULL = unknown
+    sa.Column("valid_to", sa.String(10)),
+    sa.Column("source", sa.Text),
+    sa.Column("created_at", sa.String(10), nullable=False),
+)
+promotion_products = sa.Table(
+    "promotion_products", metadata,
+    sa.Column("promotion_id", sa.Integer, sa.ForeignKey("promotions.id", ondelete="CASCADE"),
+              primary_key=True),
+    sa.Column("product_id", sa.BigInteger, primary_key=True),  # 48-bit stable product id
+)
 
 
 # ---------------------------------------------------------------- pricing
@@ -98,97 +101,115 @@ def offers_for(regular_price: float, promo: Promo) -> list[Offer]:
 
 # ---------------------------------------------------------------- storage
 
-def connect(path: Path = PROMOS_DB) -> sqlite3.Connection:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(path)
-    con.row_factory = sqlite3.Row
-    con.execute("PRAGMA foreign_keys = ON")
-    con.executescript(SCHEMA)
-    return con
+_engines: dict[str, sa.Engine] = {}
 
 
-def add(con: sqlite3.Connection, store: str, extracted: "ExtractedPromo", product_ids: list[int],
+def _normalize(url: str) -> str:
+    # Supabase / Heroku style URLs -> the psycopg 3 driver
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
+def connect(url: str | None = None) -> sa.Engine:
+    """Engine for the promotions store (cached per URL); creates the tables if needed."""
+    url = _normalize(url or settings.get("PROMOS_DATABASE_URL") or DEFAULT_URL)
+    if url not in _engines:
+        if url.startswith("sqlite:///"):
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+        engine = sa.create_engine(url, pool_pre_ping=True)
+        metadata.create_all(engine)
+        _engines[url] = engine
+    return _engines[url]
+
+
+def add(engine: sa.Engine, store: str, extracted: "ExtractedPromo", product_ids: list[int],
         valid_from: str | None, valid_to: str | None, source: str) -> int:
-    cur = con.execute(
-        "INSERT INTO promotions (store, title, label, kind, percent, price, buy, pay,"
-        " valid_from, valid_to, source, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        (store, extracted.title, extracted.label, extracted.kind, extracted.percent,
-         extracted.price, extracted.buy, extracted.pay,
-         extracted.valid_from or valid_from, extracted.valid_to or valid_to,
-         source, date.today().isoformat()),
-    )
-    pid = cur.lastrowid
-    con.executemany("INSERT OR IGNORE INTO promotion_products VALUES (?, ?)",
-                    [(pid, i) for i in product_ids])
-    con.commit()
+    with engine.begin() as con:
+        pid = con.execute(sa.insert(promotions).values(
+            store=store, title=extracted.title, label=extracted.label, kind=extracted.kind,
+            percent=extracted.percent, price=extracted.price, buy=extracted.buy, pay=extracted.pay,
+            valid_from=extracted.valid_from or valid_from, valid_to=extracted.valid_to or valid_to,
+            source=source, created_at=date.today().isoformat(),
+        ).returning(promotions.c.id)).scalar_one()
+        unique = sorted(set(product_ids))
+        if unique:
+            con.execute(sa.insert(promotion_products),
+                        [{"promotion_id": pid, "product_id": i} for i in unique])
     return pid
 
 
-def delete(con: sqlite3.Connection, promo_id: int) -> None:
-    con.execute("DELETE FROM promotions WHERE id = ?", (promo_id,))
-    con.commit()
+def _delete_where(con, condition) -> int:
+    ids = [r[0] for r in con.execute(sa.select(promotions.c.id).where(condition))]
+    if ids:  # children first: SQLite only cascades with a per-connection pragma
+        con.execute(sa.delete(promotion_products).where(promotion_products.c.promotion_id.in_(ids)))
+        con.execute(sa.delete(promotions).where(promotions.c.id.in_(ids)))
+    return len(ids)
 
 
-def delete_expired(con: sqlite3.Connection, today: str | None = None) -> int:
+def delete(engine: sa.Engine, promo_id: int) -> None:
+    with engine.begin() as con:
+        _delete_where(con, promotions.c.id == promo_id)
+
+
+def delete_expired(engine: sa.Engine, today: str | None = None) -> int:
     today = today or date.today().isoformat()
-    n = con.execute("DELETE FROM promotions WHERE valid_to IS NOT NULL AND valid_to < ?", (today,)).rowcount
-    con.commit()
-    return n
+    with engine.begin() as con:
+        return _delete_where(con, sa.and_(promotions.c.valid_to.is_not(None),
+                                          promotions.c.valid_to < today))
 
 
-def _active_clause(today: str) -> tuple[str, list]:
-    return ("(valid_from IS NULL OR valid_from <= ?) AND (valid_to IS NULL OR valid_to >= ?)",
-            [today, today])
+def _active(today: str):
+    p = promotions.c
+    return sa.and_(sa.or_(p.valid_from.is_(None), p.valid_from <= today),
+                   sa.or_(p.valid_to.is_(None), p.valid_to >= today))
 
 
-def list_active(con: sqlite3.Connection, store: str | None = None, today: str | None = None) -> list[dict]:
-    today = today or date.today().isoformat()
-    where, params = _active_clause(today)
+def _with_counts():
+    return (sa.select(promotions, sa.func.count(promotion_products.c.product_id).label("n_products"))
+            .select_from(promotions.outerjoin(promotion_products))
+            .group_by(promotions.c.id))
+
+
+def list_active(engine: sa.Engine, store: str | None = None, today: str | None = None) -> list[dict]:
+    q = _with_counts().where(_active(today or date.today().isoformat()))
     if store:
-        where += " AND store = ?"
-        params.append(store)
-    rows = con.execute(
-        f"""SELECT p.*, COUNT(pp.product_id) AS n_products FROM promotions p
-            LEFT JOIN promotion_products pp ON pp.promotion_id = p.id
-            WHERE {where} GROUP BY p.id ORDER BY store, title""", params,
-    ).fetchall()
-    return [dict(r) for r in rows]
+        q = q.where(promotions.c.store == store)
+    with engine.connect() as con:
+        return [dict(r._mapping) for r in con.execute(q.order_by(promotions.c.store, promotions.c.title))]
 
 
-def list_all(con: sqlite3.Connection) -> list[dict]:
-    rows = con.execute(
-        """SELECT p.*, COUNT(pp.product_id) AS n_products FROM promotions p
-           LEFT JOIN promotion_products pp ON pp.promotion_id = p.id
-           GROUP BY p.id ORDER BY valid_to DESC, store, title"""
-    ).fetchall()
-    return [dict(r) for r in rows]
+def list_all(engine: sa.Engine) -> list[dict]:
+    q = _with_counts().order_by(promotions.c.valid_to.desc(), promotions.c.store, promotions.c.title)
+    with engine.connect() as con:
+        return [dict(r._mapping) for r in con.execute(q)]
 
 
-def product_ids_for(con: sqlite3.Connection, promo_id: int) -> list[int]:
-    return [r[0] for r in con.execute(
-        "SELECT product_id FROM promotion_products WHERE promotion_id = ?", (promo_id,))]
+def product_ids_for(engine: sa.Engine, promo_id: int) -> list[int]:
+    with engine.connect() as con:
+        return [r[0] for r in con.execute(sa.select(promotion_products.c.product_id)
+                                          .where(promotion_products.c.promotion_id == promo_id))]
 
 
-def active_for_products(con: sqlite3.Connection, product_ids: list[int],
+def active_for_products(engine: sa.Engine, product_ids: list[int],
                         today: str | None = None) -> dict[int, list[Promo]]:
     """product id -> promotions valid today."""
     if not product_ids:
         return {}
-    today = today or date.today().isoformat()
-    where, params = _active_clause(today)
-    rows = con.execute(
-        f"""SELECT pp.product_id, p.* FROM promotion_products pp
-            JOIN promotions p ON p.id = pp.promotion_id
-            WHERE pp.product_id IN ({','.join('?' * len(product_ids))}) AND {where}""",
-        [*product_ids, *params],
-    ).fetchall()
+    q = (sa.select(promotion_products.c.product_id, promotions)
+         .join(promotions, promotions.c.id == promotion_products.c.promotion_id)
+         .where(promotion_products.c.product_id.in_(list(product_ids)),
+                _active(today or date.today().isoformat())))
     out: dict[int, list[Promo]] = {}
-    for r in rows:
-        out.setdefault(r["product_id"], []).append(Promo(
-            id=r["id"], store=r["store"], title=r["title"], label=r["label"], kind=r["kind"],
-            percent=r["percent"], price=r["price"], buy=r["buy"], pay=r["pay"],
-            valid_from=r["valid_from"], valid_to=r["valid_to"],
-        ))
+    with engine.connect() as con:
+        for r in con.execute(q):
+            m = r._mapping
+            out.setdefault(m["product_id"], []).append(Promo(
+                id=m["id"], store=m["store"], title=m["title"], label=m["label"], kind=m["kind"],
+                percent=m["percent"], price=m["price"], buy=m["buy"], pay=m["pay"],
+                valid_from=m["valid_from"], valid_to=m["valid_to"],
+            ))
     return out
 
 

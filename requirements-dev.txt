@@ -1,1 +1,2 @@
 pytest
+pgserver  # optional: lets the Postgres tests run

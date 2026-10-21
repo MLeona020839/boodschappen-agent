@@ -8,8 +8,9 @@ import hashlib
 import json
 import re
 import sqlite3
+import threading
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from .units import parse_size, parse_size_from_name, unit_price
@@ -91,12 +92,55 @@ def build(raw_path: Path = RAW_PATH, db_path: Path = DB_PATH) -> dict:
     con.execute("INSERT INTO products_fts(products_fts) VALUES ('rebuild')")
     data_date = datetime.fromtimestamp(raw_path.stat().st_mtime).strftime("%Y-%m-%d")
     con.execute("INSERT INTO meta VALUES ('data_date', ?)", (data_date,))
+    con.execute("INSERT INTO meta VALUES ('built_at', ?)", (datetime.now().isoformat(timespec="seconds"),))
     con.commit()
     counts = dict(con.execute("SELECT store, COUNT(*) FROM products GROUP BY store").fetchall())
     parsed = con.execute("SELECT AVG(qty IS NOT NULL) FROM products").fetchone()[0]
     con.close()
     tmp.replace(db_path)
     return {"counts": counts, "size_parsed_ratio": round(parsed, 3), "data_date": data_date}
+
+
+_refresh_lock = threading.Lock()
+
+
+def age(db_path: Path = DB_PATH) -> timedelta | None:
+    """How long ago the database was built, or None if there is none."""
+    if not db_path.exists():
+        return None
+    try:
+        con = sqlite3.connect(db_path)
+        row = con.execute("SELECT value FROM meta WHERE key='built_at'").fetchone()
+        con.close()
+    except sqlite3.Error:
+        return None
+    if row is None:  # built by an older version: fall back to the file time
+        return datetime.now() - datetime.fromtimestamp(db_path.stat().st_mtime)
+    return datetime.now() - datetime.fromisoformat(row[0])
+
+
+def ensure_fresh(max_age: timedelta = timedelta(hours=24), db_path: Path = DB_PATH,
+                 raw_path: Path = RAW_PATH) -> bool:
+    """Download and rebuild the prices if missing or older than `max_age`.
+
+    Safe to call from several threads at once: only one refresh runs. Returns True if it
+    refreshed. If the download fails but an older database exists, keeps using that one.
+    """
+    current = age(db_path)
+    if current is not None and current < max_age:
+        return False
+    with _refresh_lock:
+        current = age(db_path)  # another thread may have refreshed while we waited
+        if current is not None and current < max_age:
+            return False
+        try:
+            download(raw_path)
+        except OSError:
+            if current is not None:
+                return False  # offline: stale prices beat no prices
+            raise
+        build(raw_path, db_path)
+        return True
 
 
 def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
