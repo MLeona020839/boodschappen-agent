@@ -307,3 +307,30 @@ def test_admin_import_reads_a_web_address(api, monkeypatch):
     monkeypatch.setattr(webpage, "read", blocked)
     r = c.post("/api/admin/import", headers=auth, data={"store": "ah", "url": "https://www.ah.nl/bonus"})
     assert r.status_code == 400 and "blocks" in r.json()["detail"]
+
+
+def test_compare_endpoint_validates_input(api):
+    c = TestClient(api.app)
+    assert c.get("/api/compare", params={"q": "m"}).status_code == 400
+    assert c.get("/api/compare", params={"q": "melk", "stores": "nope"}).status_code == 400
+    r = c.get("/api/compare", params={"q": "melk", "stores": "ah,nope"})
+    assert r.status_code == 200 and {s["store"] for s in r.json()["results"]} <= {"ah"}
+
+
+def test_chat_passes_the_visitors_stores_to_the_agent(api, monkeypatch):
+    seen = {}
+
+    class FakeAgent:
+        def __init__(self, client=None, on_tool=None, on_text=None, stores=None):
+            seen["stores"] = stores
+            self.cost = 0.0
+            self.messages = []
+
+        def ask(self, text):
+            return "ok"
+
+    monkeypatch.setattr(api, "Agent", FakeAgent)
+    monkeypatch.setattr(api, "client", lambda: object())
+    c = TestClient(api.app)
+    r = c.post("/api/chat", json={"session_id": "abc123abc123", "message": "hoi", "stores": ["lidl", "ah", "nope"]})
+    assert r.status_code == 200 and seen["stores"] == ["ah", "lidl"]

@@ -146,11 +146,6 @@ h1 { font-size: clamp(1.5rem, 2.6vw, 2.2rem); letter-spacing: -.02em; }
 
 /* ---------------------------------------------------------------- side panels */
 
-.promo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
-.promo-list li { display: flex; gap: 8px; align-items: flex-start; font-size: .92rem; }
-.promo-list .deal { color: var(--orange); font-weight: 700; }
-details.promos summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
-
 .prefs { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .prefs li {
   display: inline-flex; gap: 6px; align-items: center; background: var(--surface-2); border-radius: 999px;
@@ -161,3 +156,46 @@ details.promos summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; 
 .pref-form input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
 .small-btn { border: 1px solid var(--green); color: var(--green); background: #fff; border-radius: 10px; padding: 8px 14px; cursor: pointer; font-weight: 600; }
 .small-btn:hover { background: var(--green-soft); }
+
+/* ---------------------------------------------------------------- store links, picker, comparison */
+
+a.badge { text-decoration: none; }
+a.badge:hover { filter: brightness(1.06); transform: translateY(-1px); }
+a.badge:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+.badge .ext { margin-left: 5px; font-weight: 600; opacity: .8; font-size: .75em; }
+
+.scope-line { margin: 0 20px 6px; }
+
+.picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.picker button {
+  border: 0; padding: 0; background: none; cursor: pointer; border-radius: 8px;
+  transition: opacity .15s, filter .15s;
+}
+.picker button[aria-pressed="false"] .badge { filter: grayscale(1); opacity: .35; }
+.picker button:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+.picker-note { margin: 10px 0 12px; }
+.link-btn { border: 0; background: none; padding: 0; color: var(--green-dark); text-decoration: underline; cursor: pointer; font-size: inherit; }
+
+.near-form { display: flex; gap: 6px; flex-wrap: wrap; }
+.near-form input { flex: 1 1 140px; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+.near-form select { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fff; }
+.near { margin-top: 10px; font-size: .92rem; }
+.near ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.near li { display: flex; align-items: center; gap: 8px; }
+.near .dist { color: var(--muted); }
+.near a { color: var(--green-dark); margin-left: auto; white-space: nowrap; }
+
+.compare { margin-top: 12px; }
+.compare ol { list-style: none; margin: 0; padding: 0 4px 0 0; display: flex; flex-direction: column; gap: 8px; max-height: 470px; overflow-y: auto; }
+.compare li.row { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.compare li.row.best { border-color: var(--green); background: var(--green-soft); }
+.compare .head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.compare .price { margin-left: auto; font-weight: 800; white-space: nowrap; }
+.compare .tag { font-size: .72rem; font-weight: 800; color: #fff; background: var(--green); border-radius: 6px; padding: 1px 6px; }
+.compare .name { margin-top: 4px; font-size: .92rem; }
+.compare .name a { color: inherit; }
+.compare .meta { font-size: .82rem; color: var(--muted); }
+.compare .deal { font-size: .85rem; color: #a24e12; font-weight: 700; }
+.compare details { margin-top: 4px; font-size: .82rem; color: var(--muted); }
+.compare details summary { cursor: pointer; }
+.compare details ul { margin: 4px 0 0; padding-left: 18px; }

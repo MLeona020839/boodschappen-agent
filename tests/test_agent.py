@@ -178,3 +178,24 @@ def test_history_from_text_limits_and_shape():
     assert history_from_text([{"role": "user", "content": "   "}, {"role": "bot", "content": "x"}]) == []
     big = [{"role": "user", "content": "u" * 5000}, {"role": "assistant", "content": "a" * 5000}] * 5
     assert sum(len(m["content"]) for m in history_from_text(big)) <= 30_000
+
+
+def test_store_scope_limits_the_tools():
+    import json
+    from grocery_agent import tools
+    tools.use_stores(["lidl"])
+    try:
+        assert tools._in_scope(None) == ["lidl"]
+        assert tools._in_scope(["ah", "lidl"]) == ["lidl"]
+        assert tools._in_scope(["ah"]) == ["lidl"]   # outside the scope: fall back to the scope
+        found = json.loads(tools.search_products.call({"query": "melk", "stores": ["ah"]}))
+        assert {r["store"] for r in found["results"]} <= {"lidl"}
+    finally:
+        tools.use_stores(None)
+    assert tools._in_scope(["ah"]) == ["ah"]
+
+
+def test_system_prompt_names_the_users_stores():
+    from grocery_agent.agent import system_prompt
+    assert "shops only at: AH, Lidl" in system_prompt(["ah", "lidl"])
+    assert "shops only at" not in system_prompt()

@@ -4,17 +4,18 @@
 const API = window.API_BASE ? window.API_BASE.replace(/\/+$/, "") + "/" : "";  // see config.js
 
 // Brand colours as text badges (not logos): recognisable, without implying affiliation.
+// `deals` is the store's own page with this week's offers.
 const STORES = {
-  ah:        { label: "AH",        bg: "#00A0E2", fg: "#ffffff" },
-  jumbo:     { label: "Jumbo",     bg: "#FFD200", fg: "#1a1a1a" },
-  lidl:      { label: "Lidl",      bg: "#0050AA", fg: "#FFF000" },
-  plus:      { label: "PLUS",      bg: "#00843D", fg: "#ffffff" },
-  dirk:      { label: "Dirk",      bg: "#E30613", fg: "#ffffff" },
-  hoogvliet: { label: "Hoogvliet", bg: "#003D7C", fg: "#ffffff" },
-  dekamarkt: { label: "DekaMarkt", bg: "#F18700", fg: "#ffffff" },
-  spar:      { label: "SPAR",      bg: "#00843D", fg: "#ffffff", border: "#E30613" },
-  poiesz:    { label: "Poiesz",    bg: "#8A1538", fg: "#ffffff" },
-  vomar:     { label: "Vomar",     bg: "#D6001C", fg: "#FFE600" },
+  ah:        { label: "AH",        bg: "#00A0E2", fg: "#ffffff", deals: "https://www.ah.nl/bonus" },
+  jumbo:     { label: "Jumbo",     bg: "#FFD200", fg: "#1a1a1a", deals: "https://www.jumbo.com/aanbiedingen/nu" },
+  lidl:      { label: "Lidl",      bg: "#0050AA", fg: "#FFF000", deals: "https://www.lidl.nl/c/aanbiedingen/a10008785" },
+  plus:      { label: "PLUS",      bg: "#00843D", fg: "#ffffff", deals: "https://www.plus.nl/aanbiedingen" },
+  dirk:      { label: "Dirk",      bg: "#E30613", fg: "#ffffff", deals: "https://www.dirk.nl/aanbiedingen" },
+  hoogvliet: { label: "Hoogvliet", bg: "#003D7C", fg: "#ffffff", deals: "https://www.hoogvliet.nl/aanbiedingen" },
+  dekamarkt: { label: "DekaMarkt", bg: "#F18700", fg: "#ffffff", deals: "https://www.dekamarkt.nl/aanbiedingen" },
+  spar:      { label: "SPAR",      bg: "#00843D", fg: "#ffffff", border: "#E30613", deals: "https://www.spar.nl/aanbiedingen/" },
+  poiesz:    { label: "Poiesz",    bg: "#8A1538", fg: "#ffffff", deals: "https://www.poiesz-supermarkten.nl/aanbiedingen" },
+  vomar:     { label: "Vomar",     bg: "#D6001C", fg: "#FFE600", deals: "https://www.vomar.nl/folders" },
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -31,6 +32,8 @@ let sessionId = store.get("ba.session", null);
 if (!sessionId) { sessionId = newSessionId(); store.set("ba.session", sessionId); }
 let chatLog = store.get("ba.history", []);   // [{role, content, steps}]; not window.history
 let prefs = store.get("ba.prefs", []);
+let myStores = store.get("ba.stores", null);   // store codes the visitor shops at; null = all
+let lastQuery = "";
 
 function newSessionId() {
   return (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()).replace(/[^A-Za-z0-9]/g, "");
@@ -90,11 +93,22 @@ function applyText() {
 
 // ---------------------------------------------------------------- rendering helpers
 
-function badge(code, small = false) {
+function badge(code, small = false, link = false) {
   const s = STORES[code] || { label: code.toUpperCase(), bg: "#5f6f65", fg: "#fff" };
-  const el = document.createElement("span");
+  const el = document.createElement(link && s.deals ? "a" : "span");
   el.className = "badge" + (small ? " sm" : "");
   el.textContent = s.label;
+  if (link && s.deals) {
+    el.href = s.deals;
+    el.target = "_blank";
+    el.rel = "noopener noreferrer";
+    el.title = t("web_badge_title", { store: s.label });
+    const ext = document.createElement("span");
+    ext.className = "ext";
+    ext.setAttribute("aria-hidden", "true");
+    ext.textContent = "↗";
+    el.append(ext);
+  }
   el.style.background = s.bg;
   el.style.color = s.fg;
   if (s.border) el.style.boxShadow = `inset 0 -3px 0 ${s.border}`;
@@ -213,14 +227,215 @@ function renderState() {
   if (!T) return;
   const badges = $("#store-badges");
   badges.replaceChildren();
-  const codes = state ? state.stores.map((s) => s.code) : Object.keys(STORES);
-  codes.forEach((c) => badges.append(badge(c)));
+  allCodes().forEach((c) => badges.append(badge(c, false, true)));
+  renderPicker();
   if (state) {
     const products = state.stores.reduce((n, s) => n + s.products, 0);
     $("#data-line").textContent = t("web_stores_compared", { stores: state.stores.length, products, date: state.data_date });
     renderBudget(state.budget);
-    renderPromos(state.promotions, state.promotions_available);
   }
+}
+
+// ---------------------------------------------------------------- my supermarkets
+
+function allCodes() {
+  return state ? state.stores.map((s) => s.code) : Object.keys(STORES);
+}
+
+function selectedStores() {
+  const all = allCodes();
+  const mine = (myStores || all).filter((c) => all.includes(c));
+  return mine.length ? mine : all;
+}
+
+function setMyStores(codes) {
+  const all = allCodes();
+  myStores = codes.length >= all.length ? null : all.filter((c) => codes.includes(c));
+  store.set("ba.stores", myStores);
+  renderPicker();
+  if (lastQuery) runCompare(lastQuery);
+}
+
+function renderPicker() {
+  const box = $("#store-picker");
+  box.replaceChildren();
+  const chosen = selectedStores();
+  allCodes().forEach((c) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(chosen.includes(c)));
+    b.append(badge(c));
+    b.addEventListener("click", () => {
+      const now = selectedStores();
+      if (now.includes(c)) {
+        if (now.length === 1) { showStoresMsg(t("web_stores_need_one")); return; }
+        setMyStores(now.filter((x) => x !== c));
+      } else setMyStores([...now, c]);
+    });
+    box.append(b);
+  });
+  $("#stores-all").hidden = myStores === null;
+  const line = $("#scope-line");
+  line.textContent = myStores === null ? t("web_scope_all")
+    : t("web_scope_line", { stores: chosen.map((c) => (STORES[c] || { label: c }).label).join(", ") });
+}
+
+function showStoresMsg(text) {
+  const box = $("#near-results");
+  box.replaceChildren();
+  const p = document.createElement("p");
+  p.className = "muted";
+  p.textContent = text;
+  box.append(p);
+}
+
+// ---------------------------------------------------------------- supermarkets near an address
+
+// Geocoding by PDOK (the Dutch government's address service), called from the browser: the address
+// never reaches this site's server. Branch locations come from supermarkets.json (OpenStreetMap,
+// built by scripts/build_supermarkets.py), so finding the nearby ones needs no further request.
+async function geocode(text) {
+  const q = text.trim().replace(/^(\d{4})\s+([a-z]{2})\b/i, "$1$2");   // "1081 HV" -> "1081HV"
+  const url = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?rows=1&fl=weergavenaam,centroide_ll"
+    + "&fq=type:(postcode OR adres OR woonplaats OR weg)&q=" + encodeURIComponent(q);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("geocode");
+  const doc = (await r.json()).response.docs[0];
+  if (!doc) return null;
+  const [lon, lat] = doc.centroide_ll.match(/[-\d.]+/g).map(Number);
+  return { lat, lon, place: doc.weergavenaam };
+}
+
+let branches = null;   // store code -> [[lat, lon], ...]
+async function loadBranches() {
+  if (!branches) {
+    const r = await fetch("supermarkets.json");
+    if (!r.ok) throw new Error("branches");
+    branches = await r.json();
+  }
+  return branches;
+}
+
+function distanceKm(lat1, lon1, lat2, lon2) {
+  const rad = Math.PI / 180, dLat = (lat2 - lat1) * rad, dLon = (lon2 - lon1) * rad;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(a));
+}
+
+async function findNearby(text, km) {
+  const box = $("#near-results");
+  box.replaceChildren();
+  const status = document.createElement("p");
+  status.className = "muted";
+  status.textContent = t("web_loading");
+  box.append(status);
+  try {
+    const [here, all] = await Promise.all([geocode(text), loadBranches()]);
+    if (!here) { status.textContent = t("web_near_notfound"); return; }
+    const nearest = {};   // store code -> km to its closest branch
+    allCodes().forEach((code) => {
+      (all[code] || []).forEach(([lat, lon]) => {
+        const d = distanceKm(here.lat, here.lon, lat, lon);
+        if (d <= km && (!(code in nearest) || d < nearest[code])) nearest[code] = d;
+      });
+    });
+    const found = Object.keys(nearest).sort((a, b) => nearest[a] - nearest[b]);
+    if (!found.length) { status.textContent = t("web_near_none", { km, place: here.place }); return; }
+    status.textContent = t("web_near_found", { km, place: here.place });
+    const ul = document.createElement("ul");
+    found.forEach((c) => {
+      const li = document.createElement("li");
+      li.append(badge(c, true));
+      const d = document.createElement("span");
+      d.className = "dist";
+      d.textContent = nearest[c] < 1 ? `${Math.round(nearest[c] * 1000 / 50) * 50} m` : `${nearest[c].toFixed(1)} km`;
+      const a = document.createElement("a");
+      a.href = STORES[c].deals;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = t("web_near_deals") + " ↗";
+      li.append(d, a);
+      ul.append(li);
+    });
+    box.append(ul);
+    setMyStores(found);
+  } catch {
+    status.textContent = t("web_near_error");
+  }
+}
+
+// ---------------------------------------------------------------- price comparison
+
+function euro(v) { return "€" + Number(v).toFixed(2); }
+
+async function runCompare(q) {
+  q = q.trim();
+  const box = $("#compare-results");
+  box.replaceChildren();
+  const msg = (text) => { const p = document.createElement("p"); p.className = "muted small"; p.textContent = text; box.replaceChildren(p); };
+  if (q.length < 2) { msg(t("web_compare_short")); return; }
+  lastQuery = q;
+  msg(t("web_loading"));
+  const params = new URLSearchParams({ q });
+  if (myStores) params.set("stores", selectedStores().join(","));
+  let data;
+  try {
+    const r = await fetch(`${API}api/compare?${params}`);
+    data = await r.json();
+    if (r.status === 429) { msg(t("web_rate_limited")); return; }
+    if (!r.ok) { msg(t("err_server")); return; }
+  } catch { msg(t("err_conn")); return; }
+  if (q !== lastQuery) return;   // a newer search is under way
+  if (!data.results.length) { msg(t("web_compare_none")); return; }
+  const note = document.createElement("p");
+  note.className = "muted small";
+  note.textContent = data.unit_label ? t("web_compare_note", { unit: data.unit_label }) : t("web_compare_note_pack");
+  const ol = document.createElement("ol");
+  data.results.forEach((s, i) => ol.append(compareRow(s, i === 0, data.unit)));
+  box.replaceChildren(note, ol);
+}
+
+function compareRow(s, cheapest, unit) {
+  const b = s.best;
+  const li = document.createElement("li");
+  li.className = "row" + (cheapest ? " best" : "");
+  const head = document.createElement("div");
+  head.className = "head";
+  head.append(badge(s.store, true));
+  if (cheapest) { const tag = document.createElement("span"); tag.className = "tag"; tag.textContent = t("web_compare_cheapest"); head.append(tag); }
+  const price = document.createElement("span");
+  price.className = "price";
+  const per = b.deal && b.deal.unit_price ? b.deal.unit_price : b.unit_price;
+  price.textContent = b.unit === unit && per ? `${euro(per)} ${b.unit_label.replace("€", "")}` : euro(b.deal ? b.deal.each : b.price);
+  head.append(price);
+  const name = document.createElement("div");
+  name.className = "name";
+  if (b.url) { const a = document.createElement("a"); a.href = b.url; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = b.name; name.append(a); }
+  else name.textContent = b.name;
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = [b.size, euro(b.price), b.unit_price ? `${euro(b.unit_price)} ${b.unit_label.replace("€", "")}` : ""].filter(Boolean).join(" · ");
+  li.append(head, name, meta);
+  if (b.deal) {
+    const d = document.createElement("div");
+    d.className = "deal";
+    d.textContent = t("web_compare_deal", { each: euro(b.deal.each), label: b.deal.label, packs: b.deal.packs });
+    li.append(d);
+  }
+  if (s.more.length) {
+    const det = document.createElement("details");
+    const sum = document.createElement("summary");
+    sum.textContent = t("web_compare_more", { n: s.more.length });
+    const ul = document.createElement("ul");
+    s.more.forEach((m) => {
+      const item = document.createElement("li");
+      item.textContent = [m.name, m.size, euro(m.price), m.unit_price ? `${euro(m.unit_price)} ${m.unit_label.replace("€", "")}` : "", m.deal ? m.deal.label : ""].filter(Boolean).join(" · ");
+      ul.append(item);
+    });
+    det.append(sum, ul);
+    li.append(det);
+  }
+  return li;
 }
 
 function renderBudget(b) {
@@ -234,33 +449,6 @@ function renderBudget(b) {
   if (b && b.day_left !== null && b.day_left <= 0) showNotice(t("day_exhausted", { total: b.day_total }));
   else if (b && b.session_spent >= b.session_total) showNotice(t("session_exhausted", { session: b.session_total }));
   setBusy(busy);
-}
-
-function renderPromos(list, available) {
-  const box = $("#promos");
-  box.replaceChildren();
-  if (!available) { const p = document.createElement("p"); p.className = "muted small"; p.textContent = t("promos_unavailable"); box.append(p); return; }
-  if (!list.length) { const p = document.createElement("p"); p.className = "muted small"; p.textContent = t("promos_none"); box.append(p); return; }
-  const det = document.createElement("details");
-  det.className = "promos";
-  const sum = document.createElement("summary");
-  sum.textContent = t("active_promos", { n: list.length });
-  det.append(sum);
-  const ul = document.createElement("ul");
-  ul.className = "promo-list";
-  list.forEach((p) => {
-    const li = document.createElement("li");
-    li.append(badge(p.store, true));
-    const text = document.createElement("span");
-    const deal = document.createElement("span");
-    deal.className = "deal";
-    deal.textContent = p.label;
-    text.append(document.createTextNode(p.title + " · "), deal);
-    li.append(text);
-    ul.append(li);
-  });
-  det.append(ul);
-  box.append(det);
 }
 
 function renderPrefs() {
@@ -329,7 +517,7 @@ async function send(text) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // The server keeps no conversation: send the visible chat so far (failed turns excluded).
-      body: JSON.stringify({ session_id: sessionId, message: text, prefs, history: historyForServer() }),
+      body: JSON.stringify({ session_id: sessionId, message: text, prefs, history: historyForServer(), stores: myStores ? selectedStores() : [] }),
     });
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
@@ -416,6 +604,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const v = $("#pref-input").value.trim();
     if (v && !prefs.includes(v)) { prefs.push(v); store.set("ba.prefs", prefs); renderPrefs(); }
     $("#pref-input").value = "";
+  });
+  $("#compare-form").addEventListener("submit", (e) => { e.preventDefault(); runCompare($("#compare-input").value); });
+  $("#stores-all").addEventListener("click", () => { setMyStores(allCodes()); $("#near-results").replaceChildren(); });
+  $("#near-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if ($("#near-input").value.trim()) findNearby($("#near-input").value, Number($("#near-km").value));
   });
   renderHistory();
   try { T = await (await fetch(`${API}api/i18n`)).json(); } catch { T = null; }

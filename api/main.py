@@ -29,7 +29,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from grocery_agent import db, i18n, prefs, promos, quota, settings
+from grocery_agent import compare, db, i18n, prefs, promos, quota, settings
 from grocery_agent.agent import PRICE, Agent, history_from_text
 
 log = logging.getLogger("api")
@@ -123,6 +123,7 @@ class RateLimiter:
 
 chat_limiter = RateLimiter([(5, 60), (30, 3600)])
 admin_limiter = RateLimiter([(10, 600)])
+search_limiter = RateLimiter([(60, 60), (600, 3600)])
 
 
 def client_ip(request: Request) -> str:
@@ -196,10 +197,32 @@ class Turn(BaseModel):
     content: str = Field(max_length=20000)
 
 
+def known_stores(codes: list[str]) -> list[str]:
+    """The valid store codes among `codes`, deduplicated; unknown codes are dropped."""
+    valid = {c for c, _, _ in db.stores(db.connect())}
+    return sorted({c for c in codes if c in valid})
+
+
+@app.get("/api/compare")
+def compare_prices(request: Request, q: str = "", stores: str = ""):
+    """Cheapest match for a product at each store (only `stores`, comma-separated, if given)."""
+    need_prices()
+    q = " ".join(q.split())[:80]
+    if len(q) < 2:
+        raise HTTPException(400, "Type at least 2 letters.")
+    if not search_limiter.allow(client_ip(request)):
+        return JSONResponse({"error": "rate_limited"}, status_code=429)
+    chosen = known_stores(stores.split(",")) if stores else None
+    if stores and not chosen:
+        raise HTTPException(400, "Unknown stores.")
+    return compare.compare(db.connect(), q, stores=chosen)
+
+
 class ChatIn(BaseModel):
     session_id: str
     message: str = Field(min_length=1, max_length=1000)
     prefs: list[str] = Field(default_factory=list, max_length=30)
+    stores: list[str] = Field(default_factory=list, max_length=20)  # the visitor's supermarkets; empty = all
     history: list[Turn] = Field(default_factory=list, max_length=60)  # the visible chat so far
 
 
@@ -222,6 +245,7 @@ def chat(body: ChatIn, request: Request):
             return JSONResponse({"error": "busy"}, status_code=409)
         _active.add(body.session_id)
     visitor_prefs = prefs.MemoryStore([p[:200] for p in body.prefs])
+    scope = known_stores(body.stores)
 
     events: queue.Queue = queue.Queue()
     DONE = object()
@@ -232,7 +256,8 @@ def chat(body: ChatIn, request: Request):
     def work() -> None:
         agent = Agent(client=client(),
                       on_tool=lambda name, args: emit("step", name=name, args=args),
-                      on_text=lambda delta: emit("text", delta=delta))
+                      on_text=lambda delta: emit("text", delta=delta),
+                      stores=scope)
         agent.messages = history_from_text([t.model_dump() for t in body.history])
         prefs.use_store(visitor_prefs)  # tools read this visitor's preferences (ContextVar, this thread)
         before_prefs = visitor_prefs.load()

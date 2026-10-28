@@ -27,9 +27,9 @@ MIN_CHARS = 400   # less than this is a cookie wall, an error page or a JavaScri
 MAX_FOLDER_PAGES = 40
 
 STORE_DOMAINS = {
-    "ah": "ah.nl", "dekamarkt": "dekamarkt.nl", "dirk": "dirk.nl", "hoogvliet": "hoogvliet.com",
-    "jumbo": "jumbo.com", "lidl": "lidl.nl", "plus": "plus.nl", "poiesz": "poiesz-supermarkten.nl",
-    "spar": "spar.nl", "vomar": "vomar.nl",
+    "ah": ("ah.nl",), "dekamarkt": ("dekamarkt.nl",), "dirk": ("dirk.nl",),
+    "hoogvliet": ("hoogvliet.com", "hoogvliet.nl"), "jumbo": ("jumbo.com",), "lidl": ("lidl.nl",),
+    "plus": ("plus.nl",), "poiesz": ("poiesz-supermarkten.nl",), "spar": ("spar.nl",), "vomar": ("vomar.nl",),
 }
 FOLDER_SITE = "allefolders.nl"
 FOLDER_CDN = "cdn.jafolders.com"
@@ -65,8 +65,8 @@ def _on(host: str, domain: str) -> bool:
 def store_for(url: str) -> str:
     """The supermarket whose own domain the URL is on, or PageError."""
     host = _host(url)
-    for store, domain in STORE_DOMAINS.items():
-        if _on(host, domain):
+    for store, domains in STORE_DOMAINS.items():
+        if any(_on(host, d) for d in domains):
             return store
     raise PageError("Use a supermarket's own promotions page or a folder on allefolders.nl.")
 

@@ -8,6 +8,7 @@ from typing import Callable
 import anthropic
 
 from . import db, prefs, promos
+from . import tools
 from .tools import ALL_TOOLS
 
 MODEL = "claude-opus-5-5"
@@ -41,13 +42,13 @@ How to work:
   grouped by store with prices, the total, and the cheaper alternative if splitting stores
   saves real money. Mention products whose pack size was unknown, since their cost is an estimate.
 
-Today is {today}.
+{store_scope}Today is {today}.
 
 Saved user preferences:
 {preferences}"""
 
 
-def system_prompt() -> str:
+def system_prompt(stores: list[str] | None = None) -> str:
     con = db.connect()
     notes = prefs.load()
     active = promos.safely(promos.list_active, default=None)
@@ -61,8 +62,15 @@ def system_prompt() -> str:
                          + "; other stores show regular prices only.")
     else:
         promo_summary = "none imported this week, so prices are regular prices; say so when it matters."
+    names = dict((c, n) for c, n, _ in db.stores(con))
+    store_scope = (
+        "The user shops only at: " + ", ".join(names.get(s, s) for s in stores)
+        + " (chosen in the app, e.g. the supermarkets near them). Search, price and recommend only these"
+        " stores; the tools are limited to them.\n\n"
+    ) if stores else ""
     return SYSTEM_TEMPLATE.format(
         n_stores=len(db.stores(con)),
+        store_scope=store_scope,
         data_date=db.data_date(con),
         promo_summary=promo_summary,
         today=date.today().isoformat(),
@@ -129,8 +137,10 @@ def _print_tool(name: str, args: dict) -> None:
 
 class Agent:
     def __init__(self, client: anthropic.Anthropic | None = None,
-                 on_tool: ToolCallback | None = _print_tool, on_text: TextCallback | None = None):
+                 on_tool: ToolCallback | None = _print_tool, on_text: TextCallback | None = None,
+                 stores: list[str] | None = None):
         self.client = client or anthropic.Anthropic()
+        self.stores = list(stores or [])  # store codes the user shops at; empty means all
         self.messages: list = []
         self.on_tool = on_tool
         self.on_text = on_text  # set it to stream the model's text as it is generated
@@ -168,10 +178,11 @@ class Agent:
 
     def _ask(self, user_text: str) -> str:
         self.messages.append({"role": "user", "content": user_text})
+        tools.use_stores(self.stores)  # the tools run on this thread
         params = dict(
             model=MODEL,
             max_tokens=16000,
-            system=system_prompt(),
+            system=system_prompt(self.stores),
             tools=ALL_TOOLS,
             messages=list(self.messages),
             thinking={"type": "adaptive"},

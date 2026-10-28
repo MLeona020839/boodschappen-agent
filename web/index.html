@@ -44,6 +44,7 @@
         <div id="examples" class="examples"></div>
       </div>
       <div id="notice" class="notice" hidden></div>
+      <p id="scope-line" class="scope-line muted small"></p>
       <form id="composer" class="composer">
         <textarea id="input" rows="1" maxlength="1000" placeholder="Ask in English, Dutch, Chinese…"
                   data-t-placeholder="chat_placeholder" aria-label="Your question"></textarea>
@@ -56,8 +57,30 @@
 
     <aside class="side">
       <section class="card">
-        <h2 data-t="promos">This week's promotions</h2>
-        <div id="promos"></div>
+        <h2 data-t="web_compare_title">Compare prices</h2>
+        <form id="compare-form" class="pref-form" role="search">
+          <input id="compare-input" maxlength="80" placeholder="Product in Dutch, e.g. halfvolle melk"
+                 data-t-placeholder="web_compare_placeholder" aria-label="Product" autocomplete="off">
+          <button type="submit" class="small-btn" data-t="web_compare_button">Search</button>
+        </form>
+        <div id="compare-results" class="compare" aria-live="polite"></div>
+      </section>
+      <section class="card">
+        <h2 data-t="web_stores_title">My supermarkets</h2>
+        <div id="store-picker" class="picker" role="group" aria-label="My supermarkets"></div>
+        <p class="muted small picker-note"><span data-t="web_stores_note"></span>
+          <button id="stores-all" type="button" class="link-btn" data-t="web_stores_all">Select all</button></p>
+        <form id="near-form" class="near-form">
+          <input id="near-input" maxlength="120" placeholder="Postcode or address" data-t-placeholder="web_near_placeholder"
+                 aria-label="Postcode or address" autocomplete="postal-code">
+          <select id="near-km" aria-label="Distance">
+            <option value="1">1 km</option><option value="2" selected>2 km</option>
+            <option value="5">5 km</option><option value="10">10 km</option>
+          </select>
+          <button type="submit" class="small-btn" data-t="web_near_button">Find nearby</button>
+        </form>
+        <div id="near-results" class="near" aria-live="polite"></div>
+        <p class="muted small" data-t="web_near_privacy"></p>
       </section>
       <section class="card">
         <h2 data-t="prefs">My preferences</h2>

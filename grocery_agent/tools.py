@@ -2,12 +2,31 @@
 from __future__ import annotations
 
 import json
+from contextvars import ContextVar
 from typing import Literal, NotRequired, Optional, TypedDict
 
 from anthropic import beta_tool
 
 from . import basket, db, prefs, promos
 from .units import unit_price_label
+
+
+# The stores the user shops at (chosen on the web page); None means all. A ContextVar, like the
+# preferences store, so concurrent visitors each get their own.
+_scope: ContextVar[frozenset[str] | None] = ContextVar("store_scope", default=None)
+
+
+def use_stores(codes: list[str] | None) -> None:
+    """Limit the tools to these store codes for the current thread/context (None or empty: all)."""
+    _scope.set(frozenset(codes) if codes else None)
+
+
+def _in_scope(stores: list[str] | None) -> list[str] | None:
+    scope = _scope.get()
+    if scope is None:
+        return stores
+    asked = set(stores or []) & scope
+    return sorted(asked or scope)   # asking only for stores outside the scope gets the scope
 
 
 def _db():
@@ -57,6 +76,7 @@ def search_products(
         sort: "relevance" (plain product names first) or "unit_price" (cheapest per kg/L first).
     """
     per_store = max(1, min(per_store, 15))
+    stores = _in_scope(stores)
     rows = db.search(_db(), query, stores=stores, per_store=50 if sort == "unit_price" else per_store)
     if sort == "unit_price":
         rows = sorted(rows, key=lambda r: (r["store"], r["unit_price"] is None, r["unit_price"] or 0))
@@ -119,7 +139,9 @@ def price_shopping_list(items: list[BasketItem]) -> str:
     ]
     ids = sorted({i for it in parsed for i in it.product_ids})
     active = promos.safely(promos.active_for_products, ids, default={})
-    products = {pid: _product(row, active) for pid, row in db.get_products(_db(), ids).items()}
+    scope = _scope.get()
+    products = {pid: _product(row, active) for pid, row in db.get_products(_db(), ids).items()
+                if scope is None or row["store"] in scope}
     return json.dumps(basket.price_basket(parsed, products), ensure_ascii=False)
 
 
@@ -136,6 +158,9 @@ def list_promotions(store: Optional[str] = None, query: Optional[str] = None) ->
     """
     con = _db()
     active = promos.safely(promos.list_active, store=store, default=None)
+    scope = _scope.get()
+    if active is not None and scope is not None:
+        active = [pr for pr in active if pr["store"] in scope]
     if active is None:
         return json.dumps({"promotions": [], "note": "The promotions database is unavailable right "
                            "now; plan with regular prices and tell the user."}, ensure_ascii=False)
