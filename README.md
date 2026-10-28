@@ -38,8 +38,9 @@ Tools (tools.py)                         Promotions (promos.py, importer.py)
    ▼
 agent.py: Claude (claude-opus-5-5) tool-use loop, multi-turn history, optional token streaming
    ▼
-api/main.py: FastAPI — streams each turn as server-sent events (tool steps + text), daily and
-             per-session budgets (quota.py), per-IP rate limits, owner-only promotion endpoints
+api/main.py: FastAPI — stateless: each request carries the visible chat; streams the turn as
+             server-sent events (tool steps + text); daily and per-visitor budgets in Postgres
+             (quota.py), per-IP rate limits, owner-only promotion endpoints
    ▼
 web/: static page in plain HTML/CSS/JS (no build step), served behind Caddy; loads instantly
 
@@ -65,11 +66,12 @@ the model calls as a tool. The model never adds up prices itself.
 | LLM-chosen product ids could be invented | Matching output is filtered against the candidate set the model was shown |
 | Store-filtered search took 0.5–3 s: SQLite scanned the store's rows and ran `MATCH` on each | Materialise the full-text hits first, then filter by store: about 1 ms, roughly 1000× faster |
 | Folder wording rarely equals catalogue wording ("Varkensschnitzels", "Capri-Sun", "A, B of C") | Claude gives several search terms; singular and de-hyphenated variants; searches take turns filling the candidate list. On a 36-item Dirk folder, matched promotions went from 20 to 28 |
+| Conversations must survive restarts and Cloud Run scaling to zero | The server keeps no state: the browser sends the visible chat (questions and final answers, capped) and the agent rebuilds its context from it. Old tool results are dropped, so long chats also get cheaper; the model searches again when it needs exact products |
 | A Dirk folder imported with "AH" selected | No default store, and the store printed on the folder (read by Claude) overrides a wrong choice |
 
 ## Testing
 
-128 tests (`pytest -q`):
+133 tests (`pytest -q`):
 
 - unit-size parsing, knapsack and promotion pricing, single/two-store comparison
 - database build, search ranking, and id stability across refreshes

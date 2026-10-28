@@ -18,6 +18,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Literal
 
 import anthropic
 import sqlalchemy as sa
@@ -27,8 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from grocery_agent import db, i18n, prefs, promos, quota, settings
-from grocery_agent.agent import PRICE, Agent
-from api.sessions import Sessions
+from grocery_agent.agent import PRICE, Agent, history_from_text
 
 log = logging.getLogger("api")
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -52,8 +52,12 @@ def client() -> anthropic.Anthropic:
     return _client
 
 
-sessions = Sessions(make_agent=lambda: Agent(client=client(), on_tool=None))
 _prices_ready = threading.Event()
+
+# The server keeps no conversations: each request carries the visible chat, so a restart or
+# Cloud Run scaling to zero loses nothing. Only "one question at a time per visitor" is in memory.
+_active: set[str] = set()
+_active_lock = threading.Lock()
 
 
 def _refresh_prices_forever(stop: threading.Event) -> None:
@@ -127,8 +131,7 @@ def session_budget_eur() -> float:
 
 
 def budget_state(session_id: str | None) -> dict:
-    session = sessions.peek(session_id) if session_id else None
-    spent = (session.spent_usd if session else 0.0) * quota.usd_to_eur()
+    spent = (quota.session_spent_usd(session_id) if session_id else 0.0) * quota.usd_to_eur()
     return {
         "day_left": quota.remaining_eur(),
         "day_total": quota.daily_budget_eur(),
@@ -149,7 +152,7 @@ def budget_block(state: dict) -> str | None:
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "prices_ready": _prices_ready.is_set(), "sessions": len(sessions)}
+    return {"ok": True, "prices_ready": _prices_ready.is_set(), "active": len(_active)}
 
 
 @app.get("/api/i18n")
@@ -179,10 +182,16 @@ def _promo_json(p: dict) -> dict:
     return {k: p[k] for k in ("id", "store", "title", "label", "kind", "valid_from", "valid_to", "n_products")}
 
 
+class Turn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=20000)
+
+
 class ChatIn(BaseModel):
     session_id: str
     message: str = Field(min_length=1, max_length=1000)
     prefs: list[str] = Field(default_factory=list, max_length=30)
+    history: list[Turn] = Field(default_factory=list, max_length=60)  # the visible chat so far
 
 
 @app.post("/api/chat")
@@ -198,10 +207,12 @@ def chat(body: ChatIn, request: Request):
     if not chat_limiter.allow(client_ip(request)):
         return JSONResponse({"error": "rate_limited"}, status_code=429)
 
-    session = sessions.get(body.session_id)
-    if not session.busy.acquire(blocking=False):
-        return JSONResponse({"error": "busy"}, status_code=409)
-    session.prefs.save([p[:200] for p in body.prefs])
+    client()  # fail now (503) if no API key, rather than inside the worker thread
+    with _active_lock:
+        if body.session_id in _active:
+            return JSONResponse({"error": "busy"}, status_code=409)
+        _active.add(body.session_id)
+    visitor_prefs = prefs.MemoryStore([p[:200] for p in body.prefs])
 
     events: queue.Queue = queue.Queue()
     DONE = object()
@@ -210,16 +221,16 @@ def chat(body: ChatIn, request: Request):
         events.put({"type": kind, **data})
 
     def work() -> None:
-        agent = session.agent
-        agent.on_tool = lambda name, args: emit("step", name=name, args=args)
-        agent.on_text = lambda delta: emit("text", delta=delta)
-        prefs.use_store(session.prefs)  # tools read this visitor's preferences (ContextVar, this thread)
-        before_prefs = session.prefs.load()
-        cost_before = agent.cost
+        agent = Agent(client=client(),
+                      on_tool=lambda name, args: emit("step", name=name, args=args),
+                      on_text=lambda delta: emit("text", delta=delta))
+        agent.messages = history_from_text([t.model_dump() for t in body.history])
+        prefs.use_store(visitor_prefs)  # tools read this visitor's preferences (ContextVar, this thread)
+        before_prefs = visitor_prefs.load()
         try:
             answer = agent.ask(body.message)
-            if session.prefs.load() != before_prefs:
-                emit("prefs", notes=session.prefs.load())
+            if visitor_prefs.load() != before_prefs:
+                emit("prefs", notes=visitor_prefs.load())
             emit("done", answer=answer)
         except anthropic.APIError as e:
             code = ("auth" if isinstance(e, anthropic.AuthenticationError) else
@@ -231,9 +242,11 @@ def chat(body: ChatIn, request: Request):
             log.exception("chat crashed")
             emit("error", code="server")
         finally:
-            quota.record(agent.cost - cost_before)  # tokens used count even if the turn failed
+            # tokens used count even if the turn failed
+            quota.record(agent.cost, session_id=body.session_id)
             emit("budget", budget=budget_state(body.session_id))
-            session.busy.release()
+            with _active_lock:
+                _active.discard(body.session_id)
             events.put(DONE)
 
     threading.Thread(target=work, daemon=True).start()
@@ -247,18 +260,6 @@ def chat(body: ChatIn, request: Request):
 
     return StreamingResponse(stream(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
-
-
-class SessionIn(BaseModel):
-    session_id: str
-
-
-@app.post("/api/reset")
-def reset(body: SessionIn):
-    if not SESSION_ID.match(body.session_id):
-        raise HTTPException(400, "Invalid session id.")
-    sessions.reset(body.session_id)
-    return {"ok": True}
 
 
 @app.get("/api/promo-week")

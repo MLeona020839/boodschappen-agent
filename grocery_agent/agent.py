@@ -83,6 +83,41 @@ def check_key(key: str) -> bool | None:
         return None
 
 
+# Conversation context rebuilt from the visible chat (questions and final answers only), as sent by
+# the browser. Limits keep a long or tampered history from costing much.
+MAX_HISTORY_MESSAGES = 20
+MAX_MESSAGE_CHARS = 6000
+MAX_HISTORY_CHARS = 30000
+
+
+def history_from_text(turns: list[dict]) -> list[dict]:
+    """Turn [{role, content}] from the browser into valid Messages API history.
+
+    Keeps only text, alternating user/assistant, starting with a user turn and ending with an
+    assistant turn (the new question is appended after it); the most recent turns win when the
+    limits are hit. Tool calls and results from earlier turns are not kept: if the model needs
+    exact products again it searches again, which also keeps long conversations cheap."""
+    messages: list[dict] = []
+    for turn in turns:
+        role, content = turn.get("role"), turn.get("content")
+        if role not in ("user", "assistant") or not isinstance(content, str) or not content.strip():
+            continue
+        content = content.strip()
+        if len(content) > MAX_MESSAGE_CHARS:
+            content = content[:MAX_MESSAGE_CHARS] + " …"
+        if messages and messages[-1]["role"] == role:
+            messages[-1] = {"role": role, "content": content}  # keep the later of two in a row
+        else:
+            messages.append({"role": role, "content": content})
+    if messages and messages[-1]["role"] == "user":
+        messages.pop()  # an unanswered question: the new one replaces it
+    messages = messages[-MAX_HISTORY_MESSAGES:]
+    while messages and (messages[0]["role"] != "user"
+                        or sum(len(m["content"]) for m in messages) > MAX_HISTORY_CHARS):
+        messages.pop(0)
+    return messages
+
+
 ToolCallback = Callable[[str, dict], None]
 TextCallback = Callable[[str], None]
 

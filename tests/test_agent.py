@@ -162,3 +162,19 @@ def test_streaming_passes_text_deltas_and_runs_tools():
     assert [m["role"] for m in second] == ["user", "assistant", "user"]
     assert second[2]["content"][0]["type"] == "tool_result"
     assert agent.cost > 0
+
+
+
+def test_history_from_text_limits_and_shape():
+    from grocery_agent.agent import MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, history_from_text
+    turns = []
+    for i in range(30):
+        turns += [{"role": "user", "content": f"q{i}"}, {"role": "assistant", "content": f"a{i}"}]
+    h = history_from_text(turns)
+    assert len(h) == MAX_HISTORY_MESSAGES and h[0] == {"role": "user", "content": "q20"}
+    assert h[-1] == {"role": "assistant", "content": "a29"}
+    long = history_from_text([{"role": "user", "content": "x" * 50_000}, {"role": "assistant", "content": "ok"}])
+    assert len(long[0]["content"]) <= MAX_MESSAGE_CHARS + 2
+    assert history_from_text([{"role": "user", "content": "   "}, {"role": "bot", "content": "x"}]) == []
+    big = [{"role": "user", "content": "u" * 5000}, {"role": "assistant", "content": "a" * 5000}] * 5
+    assert sum(len(m["content"]) for m in history_from_text(big)) <= 30_000

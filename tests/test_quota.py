@@ -12,6 +12,7 @@ def isolated(monkeypatch, tmp_path):
     monkeypatch.setattr(promos, "_down_until", 0.0)
     monkeypatch.setattr(quota, "_ready", set())
     monkeypatch.setattr(quota, "_memory", {})
+    monkeypatch.setattr(quota, "_memory_sessions", {})
     for name in ("DAILY_BUDGET_EUR", "USD_TO_EUR"):
         monkeypatch.delenv(name, raising=False)
 
@@ -45,3 +46,21 @@ def test_falls_back_to_memory_when_the_database_is_down(monkeypatch):
     quota.record(0.30)
     quota.record(0.20)
     assert quota.spent_today_usd() == pytest.approx(0.50)  # still counted, not let through
+
+
+
+def test_visitor_spend_is_per_day_and_per_session():
+    quota.record(0.30, day="2026-10-28", session_id="aaa")
+    quota.record(0.20, day="2026-10-28", session_id="aaa")
+    quota.record(0.40, day="2026-10-28", session_id="bbb")
+    quota.record(0.10, day="2026-10-29", session_id="aaa")
+    assert quota.session_spent_usd("aaa", day="2026-10-28") == pytest.approx(0.50)
+    assert quota.session_spent_usd("bbb", day="2026-10-28") == pytest.approx(0.40)
+    assert quota.session_spent_usd("aaa", day="2026-10-29") == pytest.approx(0.10)  # new day, fresh cap
+    assert quota.spent_today_usd("2026-10-28") == pytest.approx(0.90)  # still in the shared total
+
+
+def test_visitor_spend_survives_the_database_being_down(monkeypatch):
+    monkeypatch.setenv("PROMOS_DATABASE_URL", "postgresql://u:p@127.0.0.1:1/nothing")
+    quota.record(0.25, session_id="aaa")
+    assert quota.session_spent_usd("aaa") == pytest.approx(0.25)

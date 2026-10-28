@@ -326,7 +326,8 @@ async function send(text) {
     const r = await fetch("api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId, message: text, prefs }),
+      // The server keeps no conversation: send the visible chat so far (failed turns excluded).
+      body: JSON.stringify({ session_id: sessionId, message: text, prefs, history: historyForServer() }),
     });
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
@@ -374,12 +375,20 @@ async function send(text) {
   setBusy(false);
 }
 
-async function newChat() {
+function historyForServer() {
+  // Everything before the question just added, minus failed turns and the questions they belong to.
+  const past = chatLog.slice(0, -1);
+  return past
+    .filter((m, i, all) => !m.error && !(all[i + 1] && all[i + 1].error))
+    .slice(-20)
+    .map(({ role, content }) => ({ role, content }));
+}
+
+function newChat() {
   chatLog = [];
   store.set("ba.history", chatLog);
   renderHistory();
   showNotice("");
-  fetch("api/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId }) }).catch(() => {});
   if (state) renderBudget(state.budget);
 }
 
