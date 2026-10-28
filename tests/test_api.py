@@ -286,3 +286,24 @@ def test_admin_import_takes_several_files_up_to_ten(api, monkeypatch):
     assert [name for name, _ in got["files"]] == ["page-0.png", "page-1.png", "page-2.png"]
     too_many = [("files", (f"p{i}.png", b"x", "image/png")) for i in range(11)]
     assert c.post("/api/admin/import", headers=auth, data={"store": "ah"}, files=too_many).status_code == 400
+
+
+def test_admin_import_reads_a_web_address(api, monkeypatch):
+    from grocery_agent import importer, webpage
+    from grocery_agent.importer import ImportResult
+    monkeypatch.setenv("ADMIN_CODE", "owner-123")
+    got = {}
+    monkeypatch.setattr(importer, "import_promotions",
+                        lambda store, **kw: got.update(kw, store=store) or ImportResult(store=store))
+    monkeypatch.setattr(webpage, "fetch", lambda url: ("dirk", "Kipfilet 2+1 gratis"))
+    c = TestClient(api.app)
+    auth = {"Authorization": "Bearer " + c.post("/api/admin/login", json={"code": "owner-123"}).json()["token"]}
+    r = c.post("/api/admin/import", headers=auth, data={"store": "ah", "url": "https://www.dirk.nl/aanbiedingen"})
+    assert r.status_code == 200 and r.json()["switched_from"] == "ah"
+    assert got["store"] == "dirk" and "Kipfilet 2+1 gratis" in got["text"]
+
+    def blocked(url):
+        raise webpage.PageError("This website blocks automatic reading.")
+    monkeypatch.setattr(webpage, "fetch", blocked)
+    r = c.post("/api/admin/import", headers=auth, data={"store": "ah", "url": "https://www.ah.nl/bonus"})
+    assert r.status_code == 400 and "blocks" in r.json()["detail"]

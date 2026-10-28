@@ -339,7 +339,8 @@ def admin_cleanup():
 
 @app.post("/api/admin/import", dependencies=[Depends(require_admin)])
 def admin_import(store: str = Form(...), valid_from: str | None = Form(None), valid_to: str | None = Form(None),
-                 text: str = Form(""), files: list[UploadFile] | None = File(None)):
+                 text: str = Form(""), url: str = Form("", max_length=2000),
+                 files: list[UploadFile] | None = File(None)):
     need_prices()
     if store not in {c for c, _, _ in db.stores(db.connect())}:
         raise HTTPException(400, "Unknown store.")
@@ -355,8 +356,18 @@ def admin_import(store: str = Form(...), valid_from: str | None = Form(None), va
         if len(data) > MAX_UPLOAD_BYTES:
             raise HTTPException(400, f"{f.filename} is larger than 8 MB.")
         blobs.append((f.filename or "upload", data))
+    switched_from = None
+    if url.strip():
+        from grocery_agent import webpage
+        try:
+            url_store, page = webpage.fetch(url)
+        except webpage.PageError as e:
+            raise HTTPException(400, str(e))
+        if url_store != store:
+            switched_from, store = store, url_store
+        text = f"{text.strip()}\n\n{page}".strip()
     if not blobs and not text.strip():
-        raise HTTPException(400, "Add screenshots or paste text.")
+        raise HTTPException(400, "Add screenshots, a web address or paste text.")
 
     from grocery_agent.importer import import_promotions
     try:
@@ -365,7 +376,8 @@ def admin_import(store: str = Form(...), valid_from: str | None = Form(None), va
     except anthropic.APIError as e:
         raise HTTPException(502, f"Claude request failed: {e.__class__.__name__}")
     quota.record((res.input_tokens * PRICE["input"] + res.output_tokens * PRICE["output"]) / 1_000_000)
-    return {"store": res.store, "switched_from": res.switched_from, "saved": res.saved, "unmatched": res.unmatched}
+    return {"store": res.store, "switched_from": res.switched_from or switched_from,
+            "saved": res.saved, "unmatched": res.unmatched}
 
 
 # ---------------------------------------------------------------- static site (last, so /api wins)

@@ -17,6 +17,7 @@
     .field input, .field select, .field textarea {
       border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; background: #fff; min-width: 180px;
     }
+    #url { width: 100%; }
     .field textarea { min-height: 110px; width: 100%; resize: vertical; }
     .drop {
       border: 2px dashed var(--line); border-radius: 14px; padding: 22px; text-align: center; color: var(--muted);
@@ -59,6 +60,9 @@
           <div id="drop" class="drop" tabindex="0">Drop folder screenshots, photos or a PDF here, click to choose, or paste a screenshot (⌘V)</div>
           <input id="files" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple hidden>
           <ul id="file-list" class="files"></ul>
+          <label class="field">Or the web address of the promotions page
+            <input id="url" type="url" inputmode="url" placeholder="https://www.dirk.nl/aanbiedingen"></label>
+          <p class="muted small">Works for Dirk, DekaMarkt and partly Hoogvliet. AH and Jumbo block automatic reading, and PLUS, Lidl, Vomar and SPAR need JavaScript: use screenshots for those.</p>
           <label class="field">Or paste the text of a promotions page <textarea id="text"></textarea></label>
           <p><button id="import-btn" class="send" type="submit">Read and import</button> <span id="import-msg" class="small"></span></p>
         </form>

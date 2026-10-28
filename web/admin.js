@@ -157,13 +157,17 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#import-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const msg = $("#import-msg");
+    const host = (() => { try { return new URL($("#url").value.trim()).hostname; } catch { return ""; } })();
+    const fromUrl = [...$("#store").options].find((o) => o.value && host.split(".").includes(o.value));
+    if (!$("#store").value && fromUrl) $("#store").value = fromUrl.value;
     if (!$("#store").value) { msg.textContent = "Choose the supermarket first."; msg.className = "small msg-err"; return; }
-    if (!chosen.length && !$("#text").value.trim()) { msg.textContent = "Add screenshots or paste text."; msg.className = "small msg-err"; return; }
+    if (!chosen.length && !$("#url").value.trim() && !$("#text").value.trim()) { msg.textContent = "Add screenshots, a web address or paste text."; msg.className = "small msg-err"; return; }
     const form = new FormData();
     form.append("store", $("#store").value);
     if ($("#from").value) form.append("valid_from", $("#from").value);
     if ($("#to").value) form.append("valid_to", $("#to").value);
     form.append("text", $("#text").value);
+    form.append("url", $("#url").value.trim());
     chosen.forEach((f) => form.append("files", f, f.name));
     $("#import-btn").disabled = true;
     msg.textContent = "Claude is reading the promotions and matching products… (about a minute)";
@@ -194,6 +198,7 @@ document.addEventListener("DOMContentLoaded", () => {
       clearFiles();
       $("#files").value = "";
       $("#text").value = "";
+      $("#url").value = "";
       loadRows();
     } catch (err) {
       msg.textContent = err.message;
