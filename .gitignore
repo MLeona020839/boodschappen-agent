@@ -18,3 +18,4 @@ data/
 
 # Server secrets
 deploy/.env
+deploy/cloudrun.env.yaml

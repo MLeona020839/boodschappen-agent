@@ -1,6 +1,8 @@
 // Boodschappen Agent web client: plain JS, no build step.
 "use strict";
 
+const API = window.API_BASE ? window.API_BASE.replace(/\/+$/, "") + "/" : "";  // see config.js
+
 // Brand colours as text badges (not logos): recognisable, without implying affiliation.
 const STORES = {
   ah:        { label: "AH",        bg: "#00A0E2", fg: "#ffffff" },
@@ -279,7 +281,7 @@ function renderPrefs() {
 
 async function loadState() {
   try {
-    const r = await fetch(`api/state?session_id=${encodeURIComponent(sessionId)}`);
+    const r = await fetch(`${API}api/state?session_id=${encodeURIComponent(sessionId)}`);
     if (!r.ok) throw new Error(r.status);
     state = await r.json();
     renderState();
@@ -323,7 +325,7 @@ async function send(text) {
   setBusy(true);
   let answer = null, error = null;
   try {
-    const r = await fetch("api/chat", {
+    const r = await fetch(`${API}api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // The server keeps no conversation: send the visible chat so far (failed turns excluded).
@@ -416,7 +418,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("#pref-input").value = "";
   });
   renderHistory();
-  try { T = await (await fetch("api/i18n")).json(); } catch { T = null; }
+  try { T = await (await fetch(`${API}api/i18n`)).json(); } catch { T = null; }
   setLanguage(lang);
   loadState();
 });

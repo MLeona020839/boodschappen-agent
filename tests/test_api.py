@@ -256,3 +256,17 @@ def test_admin_delete(api, monkeypatch):
     auth = {"Authorization": "Bearer " + c.post("/api/admin/login", json={"code": "owner-123"}).json()["token"]}
     assert c.delete(f"/api/admin/promotions/{pid}", headers=auth).json() == {"ok": True}
     assert promos.list_all(promos.connect()) == []
+
+
+def test_cors_only_for_configured_origins(api, monkeypatch):
+    import importlib
+    monkeypatch.setenv("CORS_ORIGINS", "https://mleona020839.github.io")
+    main = importlib.reload(api)  # middleware is set up at import
+    c = TestClient(main.app)
+    pre = {"Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type"}
+    ok = c.options("/api/chat", headers={"Origin": "https://mleona020839.github.io", **pre})
+    assert ok.headers.get("access-control-allow-origin") == "https://mleona020839.github.io"
+    other = c.options("/api/chat", headers={"Origin": "https://evil.example", **pre})
+    assert "access-control-allow-origin" not in other.headers
+    monkeypatch.delenv("CORS_ORIGINS")
+    importlib.reload(main)  # back to no CORS for the other tests

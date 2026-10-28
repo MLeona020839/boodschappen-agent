@@ -1,6 +1,8 @@
 // Owner page: log in with ADMIN_CODE, import a week's promotions, delete or clean up.
 "use strict";
 
+const API = window.API_BASE ? window.API_BASE.replace(/\/+$/, "") + "/" : "";  // see config.js
+
 const $ = (sel) => document.querySelector(sel);
 let token = sessionStorage.getItem("ba.admin") || "";
 let chosen = [];   // File objects
@@ -29,7 +31,7 @@ function showPanel() {
 }
 
 async function loadStores() {
-  const state = await (await fetch("api/state")).json();
+  const state = await (await fetch(`${API}api/state`)).json();
   const sel = $("#store");
   state.stores.forEach((s) => {
     const o = document.createElement("option");
@@ -40,7 +42,7 @@ async function loadStores() {
 }
 
 async function loadRows() {
-  const { promotions } = await api("api/admin/promotions");
+  const { promotions } = await api(`${API}api/admin/promotions`);
   const body = $("#rows");
   body.replaceChildren();
   const today = new Date().toISOString().slice(0, 10);
@@ -55,7 +57,7 @@ async function loadRows() {
     del.title = "Delete";
     del.textContent = "✕";
     del.addEventListener("click", async () => {
-      await api(`api/admin/promotions/${p.id}`, { method: "DELETE" });
+      await api(`${API}api/admin/promotions/${p.id}`, { method: "DELETE" });
       loadRows();
     });
     td.append(del);
@@ -78,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     $("#login-msg").textContent = "";
-    const r = await fetch("api/admin/login", {
+    const r = await fetch(`${API}api/admin/login`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: $("#code").value }),
     });
     const data = await r.json().catch(() => ({}));
@@ -91,7 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#store").addEventListener("change", async () => {
     const code = $("#store").value;
     if (!code) return;
-    const w = await (await fetch(`api/promo-week?store=${encodeURIComponent(code)}`)).json();
+    const w = await (await fetch(`${API}api/promo-week?store=${encodeURIComponent(code)}`)).json();
     $("#from").value = w.valid_from;
     $("#to").value = w.valid_to;
   });
@@ -119,7 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
     msg.textContent = "Claude is reading the promotions and matching products… (about a minute)";
     msg.className = "small muted";
     try {
-      const res = await api("api/admin/import", { method: "POST", body: form });
+      const res = await api(`${API}api/admin/import`, { method: "POST", body: form });
       const box = $("#result");
       box.replaceChildren();
       if (res.switched_from) {
@@ -154,7 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   $("#cleanup").addEventListener("click", async () => {
-    const { removed } = await api("api/admin/cleanup", { method: "POST" });
+    const { removed } = await api(`${API}api/admin/cleanup`, { method: "POST" });
     alert(`Removed ${removed} expired promotions.`);
     loadRows();
   });

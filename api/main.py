@@ -2,7 +2,8 @@
 
 Serves the static site and a small JSON API. Configuration comes from environment variables (see
 grocery_agent/settings.py): ANTHROPIC_API_KEY, DAILY_BUDGET_EUR, SESSION_BUDGET_EUR, ADMIN_CODE,
-PROMOS_DATABASE_URL, USD_TO_EUR, and TRUST_PROXY=1 when running behind Caddy.
+PROMOS_DATABASE_URL, USD_TO_EUR, TRUST_PROXY=1 behind Caddy or Cloud Run, and CORS_ORIGINS when
+the page is served from another origin (GitHub Pages).
 """
 from __future__ import annotations
 
@@ -23,6 +24,7 @@ from typing import Literal
 import anthropic
 import sqlalchemy as sa
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -82,6 +84,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Boodschappen Agent", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+# The web page may be served elsewhere (e.g. GitHub Pages): CORS_ORIGINS lists the origins allowed
+# to call this API, e.g. "https://mleona020839.github.io". Same-origin use needs nothing.
+_origins = [o.strip().rstrip("/") for o in (settings.get("CORS_ORIGINS") or "").split(",") if o.strip()]
+if _origins:
+    app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["GET", "POST", "DELETE"],
+                       allow_headers=["Content-Type", "Authorization"], max_age=3600)
 
 
 def need_prices() -> None:

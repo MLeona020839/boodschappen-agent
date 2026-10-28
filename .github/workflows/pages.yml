@@ -1,0 +1,40 @@
+# Publishes web/ to GitHub Pages, pointed at the API on Cloud Run.
+# Needs: Settings → Pages → Source "GitHub Actions", and a repository variable API_BASE_URL
+# (Settings → Secrets and variables → Actions → Variables), e.g. https://boodschappen-agent-xxxx.europe-west4.run.app
+name: Deploy web page
+
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Point the page at the API
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          test -n "$API_BASE_URL" || { echo "Set the repository variable API_BASE_URL first."; exit 1; }
+          printf 'window.API_BASE = "%s";\n' "$API_BASE_URL" > web/config.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4

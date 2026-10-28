@@ -71,7 +71,7 @@ the model calls as a tool. The model never adds up prices itself.
 
 ## Testing
 
-133 tests (`pytest -q`):
+134 tests (`pytest -q`):
 
 - unit-size parsing, knapsack and promotion pricing, single/two-store comparison
 - database build, search ranking, and id stability across refreshes
@@ -101,8 +101,10 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 ## Deploy
 
-**Web app (recommended):** one small always-on server with Docker, the FastAPI app and Caddy for
-HTTPS. Step by step: [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
+**Web app on Cloud Run + GitHub Pages (recommended for low traffic):** the API scales to zero and
+wakes in seconds; the static page is always instant. Step by step: [`deploy/CLOUD_RUN.md`](deploy/CLOUD_RUN.md).
+
+**Web app on your own server:** Docker with the FastAPI app and Caddy for HTTPS: [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
 
 **Streamlit Community Cloud** (free, but the app sleeps when idle and wakes slowly):
 
