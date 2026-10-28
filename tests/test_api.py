@@ -270,3 +270,19 @@ def test_cors_only_for_configured_origins(api, monkeypatch):
     assert "access-control-allow-origin" not in other.headers
     monkeypatch.delenv("CORS_ORIGINS")
     importlib.reload(main)  # back to no CORS for the other tests
+
+
+def test_admin_import_takes_several_files_up_to_ten(api, monkeypatch):
+    from grocery_agent import importer
+    from grocery_agent.importer import ImportResult
+    monkeypatch.setenv("ADMIN_CODE", "owner-123")
+    got = {}
+    monkeypatch.setattr(importer, "import_promotions",
+                        lambda store, **kw: got.update(kw) or ImportResult(store=store))
+    c = TestClient(api.app)
+    auth = {"Authorization": "Bearer " + c.post("/api/admin/login", json={"code": "owner-123"}).json()["token"]}
+    files = [("files", (f"page-{i}.png", b"img%d" % i, "image/png")) for i in range(3)]
+    assert c.post("/api/admin/import", headers=auth, data={"store": "ah"}, files=files).status_code == 200
+    assert [name for name, _ in got["files"]] == ["page-0.png", "page-1.png", "page-2.png"]
+    too_many = [("files", (f"p{i}.png", b"x", "image/png")) for i in range(11)]
+    assert c.post("/api/admin/import", headers=auth, data={"store": "ah"}, files=too_many).status_code == 400

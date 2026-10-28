@@ -67,11 +67,50 @@ async function loadRows() {
   });
 }
 
-function setFiles(list) {
-  chosen = [...list].slice(0, 10);
+const MAX_FILES = 10;
+const ACCEPTED = /^(image\/(png|jpeg|webp)|application\/pdf)$/;
+
+// Adds to the list (dropping or picking again no longer replaces earlier files).
+function addFiles(list) {
+  const key = (f) => `${f.name}|${f.size}|${f.lastModified}`;
+  const have = new Set(chosen.map(key));
+  [...list].filter((f) => ACCEPTED.test(f.type) && !have.has(key(f))).forEach((f) => chosen.push(f));
+  if (chosen.length > MAX_FILES) {
+    chosen = chosen.slice(0, MAX_FILES);
+    showMsg(`At most ${MAX_FILES} files per import.`, true);
+  }
+  renderFiles();
+}
+
+function clearFiles() {
+  chosen = [];
+  renderFiles();
+}
+
+function renderFiles() {
   const ul = $("#file-list");
   ul.replaceChildren();
-  chosen.forEach((f) => { const li = document.createElement("li"); li.textContent = `${f.name} (${Math.round(f.size / 1024)} KB)`; ul.append(li); });
+  chosen.forEach((f, i) => {
+    const li = document.createElement("li");
+    li.append(document.createTextNode(`${f.name} (${Math.round(f.size / 1024)} KB) `));
+    const x = document.createElement("button");
+    x.type = "button";
+    x.className = "del";
+    x.title = "Remove";
+    x.textContent = "✕";
+    x.addEventListener("click", () => { chosen.splice(i, 1); renderFiles(); });
+    li.append(x);
+    ul.append(li);
+  });
+  $("#drop").textContent = chosen.length
+    ? `${chosen.length} file${chosen.length > 1 ? "s" : ""} added. Drop, pick or paste (⌘V) more.`
+    : "Drop folder screenshots, photos or a PDF here, click to choose, or paste a screenshot (⌘V)";
+}
+
+function showMsg(text, isError) {
+  const msg = $("#import-msg");
+  msg.textContent = text;
+  msg.className = isError ? "small msg-err" : "small muted";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -101,10 +140,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const drop = $("#drop");
   drop.addEventListener("click", () => $("#files").click());
   drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") $("#files").click(); });
-  $("#files").addEventListener("change", (e) => setFiles(e.target.files));
+  $("#files").addEventListener("change", (e) => { addFiles(e.target.files); e.target.value = ""; });
   ["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
-  drop.addEventListener("drop", (e) => setFiles(e.dataTransfer.files));
+  drop.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
+  // A screenshot taken to the clipboard (⌘⌃⇧4) can be pasted straight onto the page.
+  document.addEventListener("paste", (e) => {
+    if ($("#panel").hidden || e.target === $("#text")) return;
+    const files = [...(e.clipboardData?.files || [])];
+    if (!files.length) return;
+    e.preventDefault();
+    const stamp = new Date().toISOString().slice(11, 19).replace(/:/g, "");
+    addFiles(files.map((f, i) => new File([f], `pasted-${stamp}-${i + 1}.png`, { type: f.type || "image/png" })));
+  });
 
   $("#import-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -143,7 +191,7 @@ document.addEventListener("DOMContentLoaded", () => {
         box.append(p);
       }
       msg.textContent = "";
-      setFiles([]);
+      clearFiles();
       $("#files").value = "";
       $("#text").value = "";
       loadRows();
