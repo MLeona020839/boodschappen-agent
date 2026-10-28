@@ -295,7 +295,7 @@ def test_admin_import_reads_a_web_address(api, monkeypatch):
     got = {}
     monkeypatch.setattr(importer, "import_promotions",
                         lambda store, **kw: got.update(kw, store=store) or ImportResult(store=store))
-    monkeypatch.setattr(webpage, "fetch", lambda url: ("dirk", "Kipfilet 2+1 gratis"))
+    monkeypatch.setattr(webpage, "read", lambda url: webpage.Page("dirk", text="Kipfilet 2+1 gratis"))
     c = TestClient(api.app)
     auth = {"Authorization": "Bearer " + c.post("/api/admin/login", json={"code": "owner-123"}).json()["token"]}
     r = c.post("/api/admin/import", headers=auth, data={"store": "ah", "url": "https://www.dirk.nl/aanbiedingen"})
@@ -304,6 +304,6 @@ def test_admin_import_reads_a_web_address(api, monkeypatch):
 
     def blocked(url):
         raise webpage.PageError("This website blocks automatic reading.")
-    monkeypatch.setattr(webpage, "fetch", blocked)
+    monkeypatch.setattr(webpage, "read", blocked)
     r = c.post("/api/admin/import", headers=auth, data={"store": "ah", "url": "https://www.ah.nl/bonus"})
     assert r.status_code == 400 and "blocks" in r.json()["detail"]

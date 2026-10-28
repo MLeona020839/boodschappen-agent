@@ -80,7 +80,50 @@ def test_fetch_explains_blocked_and_javascript_pages(monkeypatch):
 
 def test_redirect_to_another_site_is_refused():
     import urllib.request
-    handler = webpage._SameStoreRedirects()
+    handler = webpage._SameSiteRedirects()
     req = urllib.request.Request("https://www.dirk.nl/aanbiedingen")
     with pytest.raises(webpage.PageError, match="another website"):
         handler.redirect_request(req, None, 302, "Found", {}, "https://example.com/")
+
+
+FOLDER = "https://www.allefolders.nl/albert-heijn-aanbiedingen/012d0fb4-c013-4d08-b558-be65ef165e4a/0"
+
+
+def _pages(n):
+    return "".join(f'<img src="https://cdn.jafolders.com/pages/{i:08d}-0000-0000-0000-000000000000/large.webp">' * 2
+                   for i in range(n))
+
+
+def test_folder_pages_downloads_each_page_once_in_order(monkeypatch):
+    fetched = []
+
+    def open_(req, timeout):
+        fetched.append(req.full_url)
+        if req.full_url.endswith("/folder-aanbiedingen"):
+            return _Response(f'<a href="{FOLDER[len("https://www.allefolders.nl"):]}">week 44</a>'.encode())
+        if "allefolders" in req.full_url:
+            return _Response(_pages(3).encode())
+        return _Response(b"webp-bytes")
+    monkeypatch.setattr(webpage._opener, "open", open_)
+
+    page = webpage.read("https://www.allefolders.nl/albert-heijn/folder-aanbiedingen")
+    assert page.store == "ah" and page.text == ""
+    assert [n for n, _ in page.files] == ["ah-folder-p01.webp", "ah-folder-p02.webp", "ah-folder-p03.webp"]
+    assert fetched[1] == FOLDER and fetched[2].startswith("https://cdn.jafolders.com/pages/00000000-")
+
+
+def test_folder_pages_are_capped(monkeypatch):
+    monkeypatch.setattr(webpage._opener, "open",
+                        lambda req, timeout: _Response(_pages(60).encode() if "allefolders" in req.full_url else b"x"))
+    assert len(webpage.read(FOLDER).files) == webpage.MAX_FOLDER_PAGES
+
+
+@pytest.mark.parametrize("url,match", [
+    ("https://www.allefolders.nl/kruidvat-aanbiedingen/012d0fb4-c013-4d08-b558-be65ef165e4a/0", "supported supermarket"),
+    ("https://www.allefolders.nl/", "supported supermarket"),
+    ("https://www.folderz.nl/bekijk/aanbiedingen/albert-heijn-folder-3865403", "allefolders"),
+    ("https://cdn.jafolders.com/pages/x/large.webp", "supermarket's own"),
+])
+def test_read_explains_unsupported_addresses(url, match):
+    with pytest.raises(webpage.PageError, match=match):
+        webpage.read(url)

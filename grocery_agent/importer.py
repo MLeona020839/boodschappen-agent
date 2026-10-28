@@ -83,7 +83,7 @@ def store_from_folder(seen: str | None, stores: list[tuple[str, str, int]]) -> s
 
 def import_promotions(store: str, *, files: list[tuple[str, bytes]] = (), text: str = "",
                       valid_from: str | None = None, valid_to: str | None = None,
-                      client: anthropic.Anthropic | None = None) -> ImportResult:
+                      client: anthropic.Anthropic | None = None, source: str | None = None) -> ImportResult:
     client = client or anthropic.Anthropic()
     con, pcon = db.connect(), promos.connect()
     stores = db.stores(con)
@@ -109,7 +109,7 @@ def import_promotions(store: str, *, files: list[tuple[str, bytes]] = (), text: 
     matched, usage = promos.match(client, MODEL, extracted, candidates)
     _add_usage(result, usage)
 
-    source = ", ".join(n for n, _ in files) or "pasted text"
+    source = source or ", ".join(n for n, _ in files) or "pasted text"
     for p, ids in zip(extracted, matched):
         row = {"title": p.title, "promotion": p.label, "kind": p.kind,
                "valid_to": p.valid_to or valid_to}

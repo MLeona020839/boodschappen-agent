@@ -158,7 +158,10 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     const msg = $("#import-msg");
     const host = (() => { try { return new URL($("#url").value.trim()).hostname; } catch { return ""; } })();
-    const fromUrl = [...$("#store").options].find((o) => o.value && host.split(".").includes(o.value));
+    const path = (() => { try { return new URL($("#url").value.trim()).pathname; } catch { return ""; } })();
+    const slug = (path.match(/^\/([a-z0-9-]+?)(?:-aanbiedingen\/|\/folder-aanbiedingen)/) || [])[1];
+    const code = host.endsWith("allefolders.nl") ? ({ "albert-heijn": "ah" }[slug] || slug) : null;
+    const fromUrl = [...$("#store").options].find((o) => o.value && (code ? o.value === code : host.split(".").includes(o.value)));
     if (!$("#store").value && fromUrl) $("#store").value = fromUrl.value;
     if (!$("#store").value) { msg.textContent = "Choose the supermarket first."; msg.className = "small msg-err"; return; }
     if (!chosen.length && !$("#url").value.trim() && !$("#text").value.trim()) { msg.textContent = "Add screenshots, a web address or paste text."; msg.className = "small msg-err"; return; }
@@ -170,7 +173,9 @@ document.addEventListener("DOMContentLoaded", () => {
     form.append("url", $("#url").value.trim());
     chosen.forEach((f) => form.append("files", f, f.name));
     $("#import-btn").disabled = true;
-    msg.textContent = "Claude is reading the promotions and matching products… (about a minute)";
+    msg.textContent = $("#url").value.trim().includes("allefolders")
+      ? "Downloading the folder and reading every page… (a few minutes)"
+      : "Claude is reading the promotions and matching products… (about a minute)";
     msg.className = "small muted";
     try {
       const res = await api(`${API}api/admin/import`, { method: "POST", body: form });

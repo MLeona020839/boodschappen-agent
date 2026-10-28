@@ -356,23 +356,28 @@ def admin_import(store: str = Form(...), valid_from: str | None = Form(None), va
         if len(data) > MAX_UPLOAD_BYTES:
             raise HTTPException(400, f"{f.filename} is larger than 8 MB.")
         blobs.append((f.filename or "upload", data))
-    switched_from = None
+    switched_from, source = None, None
     if url.strip():
         from grocery_agent import webpage
         try:
-            url_store, page = webpage.fetch(url)
+            page = webpage.read(url)
         except webpage.PageError as e:
             raise HTTPException(400, str(e))
-        if url_store != store:
-            switched_from, store = store, url_store
-        text = f"{text.strip()}\n\n{page}".strip()
+        if page.store != store:
+            # Dates left at the chosen store's default week follow the address's store instead.
+            if (valid_from, valid_to) == tuple(d.isoformat() for d in promos.promo_week(store)):
+                valid_from, valid_to = (d.isoformat() for d in promos.promo_week(page.store))
+            switched_from, store = store, page.store
+        blobs += page.files
+        text = f"{text.strip()}\n\n{page.text}".strip()
+        source = url.strip()
     if not blobs and not text.strip():
         raise HTTPException(400, "Add screenshots, a web address or paste text.")
 
     from grocery_agent.importer import import_promotions
     try:
         res = import_promotions(store, files=blobs, text=text, valid_from=valid_from, valid_to=valid_to,
-                                client=client())
+                                client=client(), source=source)
     except anthropic.APIError as e:
         raise HTTPException(502, f"Claude request failed: {e.__class__.__name__}")
     quota.record((res.input_tokens * PRICE["input"] + res.output_tokens * PRICE["output"]) / 1_000_000)
