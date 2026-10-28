@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Boodschappen Agent</title>
+  <meta name="description" content="Plan your meals and find the cheapest basket across 10 Dutch supermarkets.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <script defer src="vendor/marked.min.js"></script>
+  <script defer src="vendor/purify.min.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="34" height="34"><rect width="32" height="32" rx="9" fill="var(--green)"/><path d="M8 10h2.2l2.3 9.3h9.2l2-7H13" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="14" cy="23.5" r="1.6" fill="#fff"/><circle cx="21" cy="23.5" r="1.6" fill="#fff"/></svg>
+      </div>
+      <div>
+        <h1 data-t="title">What's for dinner, and where is it cheapest?</h1>
+        <p class="tagline" data-t="web_tagline">Plan your meals, compare 10 Dutch supermarkets, pay less.</p>
+      </div>
+    </div>
+    <div class="top-right">
+      <div class="langs" role="group" aria-label="Language">
+        <button type="button" data-lang="en">English</button>
+        <button type="button" data-lang="nl">Nederlands</button>
+        <button type="button" data-lang="zh">中文</button>
+      </div>
+      <div id="budget" class="budget" hidden></div>
+    </div>
+  </header>
+
+  <section class="stores" aria-label="Supermarkets">
+    <div id="store-badges" class="badges"></div>
+    <p id="data-line" class="muted small"></p>
+  </section>
+
+  <main class="layout">
+    <section class="card chat" aria-label="Chat">
+      <div id="messages" class="messages" aria-live="polite">
+        <div id="examples" class="examples"></div>
+      </div>
+      <div id="notice" class="notice" hidden></div>
+      <form id="composer" class="composer">
+        <textarea id="input" rows="1" maxlength="1000" placeholder="Ask in English, Dutch, Chinese…"
+                  data-t-placeholder="chat_placeholder" aria-label="Your question"></textarea>
+        <button id="send" class="send" type="submit" data-t="web_send">Send</button>
+        <button id="new-chat" class="icon-btn" type="button" title="New conversation" data-t-title="new_chat" hidden>
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </form>
+    </section>
+
+    <aside class="side">
+      <section class="card">
+        <h2 data-t="promos">This week's promotions</h2>
+        <div id="promos"></div>
+      </section>
+      <section class="card">
+        <h2 data-t="prefs">My preferences</h2>
+        <ul id="prefs" class="prefs"></ul>
+        <form id="pref-form" class="pref-form">
+          <input id="pref-input" maxlength="200" placeholder="e.g. no pork" data-t-placeholder="prefs_placeholder"
+                 aria-label="Add preference" data-t-aria="prefs_add">
+          <button type="submit" class="small-btn" data-t="prefs_add_button">Add</button>
+        </form>
+        <p class="muted small" data-t="web_prefs_note">Saved in this browser only.</p>
+      </section>
+      <p class="muted small disclaimer" data-t="web_disclaimer"></p>
+    </aside>
+  </main>
+</body>
+</html>

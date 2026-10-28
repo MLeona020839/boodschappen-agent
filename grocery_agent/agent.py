@@ -84,6 +84,7 @@ def check_key(key: str) -> bool | None:
 
 
 ToolCallback = Callable[[str, dict], None]
+TextCallback = Callable[[str], None]
 
 
 def _print_tool(name: str, args: dict) -> None:
@@ -93,10 +94,11 @@ def _print_tool(name: str, args: dict) -> None:
 
 class Agent:
     def __init__(self, client: anthropic.Anthropic | None = None,
-                 on_tool: ToolCallback | None = _print_tool):
+                 on_tool: ToolCallback | None = _print_tool, on_text: TextCallback | None = None):
         self.client = client or anthropic.Anthropic()
         self.messages: list = []
         self.on_tool = on_tool
+        self.on_text = on_text  # set it to stream the model's text as it is generated
         self.usage = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
 
     @property
@@ -131,7 +133,7 @@ class Agent:
 
     def _ask(self, user_text: str) -> str:
         self.messages.append({"role": "user", "content": user_text})
-        runner = self.client.beta.messages.tool_runner(
+        params = dict(
             model=MODEL,
             max_tokens=16000,
             system=system_prompt(),
@@ -143,8 +145,14 @@ class Agent:
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
         )
+        if self.on_text:
+            runner = self.client.beta.messages.tool_runner(**params, stream=True)
+            replies = self._streamed(runner)
+        else:
+            runner = self.client.beta.messages.tool_runner(**params)
+            replies = iter(runner)
         last = None
-        for message in runner:
+        for message in replies:
             last = message
             self._track(message)
             # Mirror history: the runner keeps its own copy and doesn't expose it.
@@ -164,6 +172,17 @@ class Agent:
         if last.stop_reason == "max_tokens":
             text += "\n\n(Answer was cut off; ask me to continue.)"
         return text
+
+    def _streamed(self, runner):
+        """Yield each complete reply of a streaming runner, passing text deltas to on_text.
+
+        A generator, so the loop in _ask handles each reply (tool results included) before the
+        runner asks the model for the next one, exactly as with the non-streaming runner."""
+        for stream in runner:
+            for event in stream:
+                if event.type == "content_block_delta" and getattr(event.delta, "type", "") == "text_delta":
+                    self.on_text(event.delta.text)
+            yield stream.get_final_message()
 
     def _track(self, message) -> None:
         u = message.usage

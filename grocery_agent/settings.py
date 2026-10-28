@@ -16,16 +16,18 @@ Settings
 from __future__ import annotations
 
 import os
+import sys
 
 
 def get(name: str, default: str | None = None) -> str | None:
     value = None
-    try:
-        import streamlit as st
-        if name in st.secrets:
-            value = str(st.secrets[name])
-    except Exception:  # not running under Streamlit, or no secrets.toml
-        pass
+    if "streamlit" in sys.modules:  # only the Streamlit app has secrets; the API reads the environment
+        try:
+            import streamlit as st
+            if name in st.secrets:
+                value = str(st.secrets[name])
+        except Exception:  # no secrets.toml
+            pass
     if value is None:
         value = os.environ.get(name)
     # Pasted secrets often carry stray spaces or newlines, which silently break API keys.

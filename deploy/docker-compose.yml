@@ -1,0 +1,29 @@
+# Run on the server from this folder:  docker compose up -d --build
+services:
+  app:
+    build: ..
+    env_file: .env
+    environment:
+      TRUST_PROXY: "1"          # take the visitor's IP from Caddy for rate limiting
+    volumes:
+      - appdata:/app/data       # price database (and promotions, if no PROMOS_DATABASE_URL)
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.8
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # HTTPS certificates
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  appdata:
+  caddy_data:
+  caddy_config:

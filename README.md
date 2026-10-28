@@ -36,9 +36,14 @@ Tools (tools.py)                         Promotions (promos.py, importer.py)
   list_promotions          knapsack DP       → candidate search → Claude picks products
   remember / forget_preference               → SQLite or Postgres (SQLAlchemy)
    ▼
-agent.py: Claude (claude-opus-5-5) tool-use loop, multi-turn history
+agent.py: Claude (claude-opus-5-5) tool-use loop, multi-turn history, optional token streaming
    ▼
-app.py: Streamlit chat UI with live tool steps, promotion import, preferences, spend tracking
+api/main.py: FastAPI — streams each turn as server-sent events (tool steps + text), daily and
+             per-session budgets (quota.py), per-IP rate limits, owner-only promotion endpoints
+   ▼
+web/: static page in plain HTML/CSS/JS (no build step), served behind Caddy; loads instantly
+
+app.py: the earlier Streamlit UI on the same modules, still runnable
 ```
 
 **Division of labour.** The LLM does what it is good at: understanding the request, designing
@@ -64,12 +69,14 @@ the model calls as a tool. The model never adds up prices itself.
 
 ## Testing
 
-111 tests (`pytest -q`):
+128 tests (`pytest -q`):
 
 - unit-size parsing, knapsack and promotion pricing, single/two-store comparison
 - database build, search ranking, and id stability across refreshes
 - promotion storage on SQLite and on **real Postgres** (via `pgserver`, optional)
-- the agent tool loop against a **mocked Messages API** (request shape, history, per-session preferences)
+- the agent tool loop against a **mocked Messages API**, both regular and **streamed (SSE)** responses
+- the FastAPI backend: event stream order, cost recorded for failed turns, daily/session budgets, per-IP
+  rate limiting, one question at a time per session, signed and expiring owner tokens, import uploads
 - the Streamlit UI headless with `AppTest` (open access, daily and session budgets, cost recorded even for failed turns, owner-only promotion management, per-session preferences, store promotion weeks, language switch)
 - the daily spend ledger, including its in-memory fallback when the database is down
 - graceful degradation when the promotions database is unreachable (e.g. a paused Supabase project)
@@ -83,12 +90,19 @@ ten-store comparison cost about $0.19.
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 export ANTHROPIC_API_KEY=sk-ant-...
-.venv/bin/streamlit run app.py          # http://localhost:8501; prices download on first start
-.venv/bin/python -m grocery_agent       # or chat in the terminal
+.venv/bin/pip install -r requirements-api.txt
+.venv/bin/uvicorn api.main:app --port 8000   # web app: http://localhost:8000 (owner page: /admin.html)
+.venv/bin/streamlit run app.py               # or the Streamlit UI: http://localhost:8501
+.venv/bin/python -m grocery_agent            # or chat in the terminal
 .venv/bin/pytest -q
 ```
 
-## Deploy (Streamlit Community Cloud)
+## Deploy
+
+**Web app (recommended):** one small always-on server with Docker, the FastAPI app and Caddy for
+HTTPS. Step by step: [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
+
+**Streamlit Community Cloud** (free, but the app sleeps when idle and wakes slowly):
 
 1. Push this repo to GitHub.
 2. At [share.streamlit.io](https://share.streamlit.io), create an app from the repo with `app.py`.

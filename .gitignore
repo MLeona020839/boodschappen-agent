@@ -15,3 +15,6 @@ data/
 .claude/
 .agents/
 .DS_Store
+
+# Server secrets
+deploy/.env

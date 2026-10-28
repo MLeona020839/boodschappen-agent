@@ -1,0 +1,8 @@
+# Caddy serves HTTPS (certificates are automatic) and forwards everything to the app.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	reverse_proxy app:8000 {
+		# send streamed answers to the browser immediately
+		flush_interval -1
+	}
+}

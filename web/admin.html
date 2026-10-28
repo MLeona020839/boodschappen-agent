@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Promotions Admin</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .admin { max-width: 980px; margin: 0 auto; padding: 28px 24px 48px; display: flex; flex-direction: column; gap: 18px; }
+    .admin .card { padding: 20px; }
+    .admin h1 { font-size: 1.6rem; }
+    .admin h2 { font-size: 1.1rem; margin-bottom: 12px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .field { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; }
+    .field input, .field select, .field textarea {
+      border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; background: #fff; min-width: 180px;
+    }
+    .field textarea { min-height: 110px; width: 100%; resize: vertical; }
+    .drop {
+      border: 2px dashed var(--line); border-radius: 14px; padding: 22px; text-align: center; color: var(--muted);
+      cursor: pointer; background: var(--surface-2);
+    }
+    .drop.over { border-color: var(--green); background: var(--green-soft); color: var(--green-dark); }
+    .files { font-size: .9rem; margin: 8px 0 0; }
+    .result li { margin: 4px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    .del { border: 0; background: transparent; color: #9b1c1c; cursor: pointer; font-size: 1.05rem; }
+    .msg-ok { color: var(--green-dark); } .msg-err { color: #9b1c1c; }
+  </style>
+  <script defer src="admin.js"></script>
+</head>
+<body>
+  <div class="admin">
+    <h1>Promotions admin</h1>
+
+    <section id="login" class="card">
+      <h2>Log in</h2>
+      <form id="login-form" class="row">
+        <label class="field">Admin code <input id="code" type="password" autocomplete="current-password" required></label>
+        <button class="send" type="submit">Log in</button>
+      </form>
+      <p id="login-msg" class="small"></p>
+    </section>
+
+    <section id="panel" hidden>
+      <div class="card">
+        <h2>Import this week's promotions</h2>
+        <form id="import-form">
+          <div class="row">
+            <label class="field">Supermarket <select id="store" required><option value="">Choose…</option></select></label>
+            <label class="field">Valid from <input id="from" type="date"></label>
+            <label class="field">Valid to <input id="to" type="date"></label>
+          </div>
+          <p class="muted small">Dates follow the store's promotion week (AH Mon–Sun, Jumbo and Dirk Wed–Tue); dates printed on the folder win.</p>
+          <div id="drop" class="drop" tabindex="0">Drop folder screenshots, photos or a PDF here, or click to choose</div>
+          <input id="files" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple hidden>
+          <ul id="file-list" class="files"></ul>
+          <label class="field">Or paste the text of a promotions page <textarea id="text"></textarea></label>
+          <p><button id="import-btn" class="send" type="submit">Read and import</button> <span id="import-msg" class="small"></span></p>
+        </form>
+        <div id="result" class="result"></div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <h2 style="margin: 0;">All promotions</h2>
+          <button id="cleanup" class="small-btn" type="button">Remove expired</button>
+        </div>
+        <table>
+          <thead><tr><th>Store</th><th>Promotion</th><th>Deal</th><th>Valid</th><th>Products</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

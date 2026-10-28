@@ -107,3 +107,58 @@ def test_completed_turns_are_kept():
     agent.ask("one")
     agent.ask("two")
     assert [m["role"] for m in requests[-1][1]["messages"]] == ["user", "assistant", "user"]
+
+
+def sse(events):
+    return "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events)
+
+
+def streamed_reply(blocks, stop_reason):
+    """SSE events for one assistant reply made of text and tool_use blocks."""
+    events = [{"type": "message_start", "message": {
+        "id": "m", "type": "message", "role": "assistant", "model": "claude-opus-5-5", "content": [],
+        "stop_reason": None, "stop_sequence": None, "usage": {"input_tokens": 100, "output_tokens": 1}}}]
+    for i, b in enumerate(blocks):
+        if b["type"] == "text":
+            events.append({"type": "content_block_start", "index": i, "content_block": {"type": "text", "text": ""}})
+            for piece in b["pieces"]:
+                events.append({"type": "content_block_delta", "index": i,
+                               "delta": {"type": "text_delta", "text": piece}})
+        else:
+            events.append({"type": "content_block_start", "index": i, "content_block": {
+                "type": "tool_use", "id": b["id"], "name": b["name"], "input": {}}})
+            events.append({"type": "content_block_delta", "index": i,
+                           "delta": {"type": "input_json_delta", "partial_json": json.dumps(b["input"])}})
+        events.append({"type": "content_block_stop", "index": i})
+    events.append({"type": "message_delta", "delta": {"stop_reason": stop_reason, "stop_sequence": None},
+                   "usage": {"output_tokens": 20}})
+    events.append({"type": "message_stop"})
+    return sse(events)
+
+
+def test_streaming_passes_text_deltas_and_runs_tools():
+    prefs.use_store(prefs.MemoryStore())
+    replies = [
+        streamed_reply([{"type": "tool_use", "id": "t1", "name": "list_stores", "input": {}}], "tool_use"),
+        streamed_reply([{"type": "text", "pieces": ["Lidl is ", "cheapest."]}], "end_turn"),
+    ]
+    requests = []
+
+    def handler(req):
+        body = json.loads(req.content)
+        requests.append(body)
+        return httpx2.Response(200, headers={"content-type": "text/event-stream"},
+                               text=replies[len(requests) - 1])
+
+    client = anthropic.Anthropic(api_key="test", http_client=DefaultHttpxClient(
+        transport=httpx2.MockTransport(handler)))
+    pieces, tools = [], []
+    agent = Agent(client, on_tool=lambda n, a: tools.append(n), on_text=pieces.append)
+    assert agent.ask("cheapest?") == "Lidl is cheapest."
+    assert pieces == ["Lidl is ", "cheapest."]
+    assert tools == ["list_stores"]
+    assert all(r.get("stream") for r in requests)
+    second = requests[1]["messages"]
+    assert [m["role"] for m in second] == ["user", "assistant", "user"]
+    assert second[2]["content"][0]["type"] == "tool_result"
+    assert agent.cost > 0

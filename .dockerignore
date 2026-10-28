@@ -1,0 +1,11 @@
+.venv
+.git
+data
+tests
+docs
+.streamlit
+.claude
+.agents
+__pycache__
+*.pyc
+deploy/.env

@@ -1,0 +1,8 @@
+# Web app (FastAPI backend + static frontend), as deployed with deploy/
+anthropic>=1.15
+pydantic>=2
+sqlalchemy>=2
+psycopg[binary]>=3
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
