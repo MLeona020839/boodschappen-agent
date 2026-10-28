@@ -1,13 +1,17 @@
 """Configuration, read from Streamlit secrets (when deployed) or environment variables (locally).
 
 Settings
-    ANTHROPIC_API_KEY     Server-side key. Optional when every user brings their own key.
-    ACCESS_CODE           If set, the server key is only used after entering this code.
-    SESSION_BUDGET_USD    Max spend per browser session on the server key (default 1.00).
+    ANTHROPIC_API_KEY     Server-side key. Without ACCESS_CODE the app is open to everyone on it.
+    ACCESS_CODE           Optional: only visitors who enter this code may use the server key.
+    DAILY_BUDGET_EUR      Free budget per day for all visitors together on the server key
+                          (resets at midnight Amsterdam time). No cap when unset.
+    SESSION_BUDGET_EUR    Max spend per browser session on the server key (default 1.00).
+    USD_TO_EUR            Exchange rate for the budgets; Anthropic bills in USD (default 0.92).
+    ADMIN_CODE            On a shared deployment, only this code unlocks importing/deleting promotions.
     SHARED_DEPLOYMENT     "true" on a public deployment: preferences are kept per session
                           instead of in a shared file.
-    PROMOS_DATABASE_URL   SQLAlchemy URL for promotions, e.g. a Supabase Postgres URL.
-                          Defaults to a local SQLite file.
+    PROMOS_DATABASE_URL   SQLAlchemy URL for promotions and the daily spend, e.g. a Supabase
+                          Postgres URL. Defaults to a local SQLite file.
 """
 from __future__ import annotations
 

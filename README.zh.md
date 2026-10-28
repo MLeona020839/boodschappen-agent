@@ -77,10 +77,12 @@ app.py：Streamlit 界面（对话、查询过程、折扣导入、偏好管理�
 2. 在 share.streamlit.io 用这个仓库创建应用，入口文件选 `app.py`。
 3. 在 Advanced settings → Secrets 里填写配置，参考 `.streamlit/secrets.example.toml`：
    - `SHARED_DEPLOYMENT = "true"`：每位访客的偏好单独保存，价格自动更新。
-   - 打开网站时，页面中间会先要求填写邀请码或**自己的** API key（会先免费验证 key 是否有效），key 只保存在各自的会话里。
-   - 可选：`ANTHROPIC_API_KEY` + `ACCESS_CODE` 让知道邀请码的人用你的 key，
-     并用 `SESSION_BUDGET_USD` 限制每个会话的花费（默认 $1）。
-   - 可选：`PROMOS_DATABASE_URL` 填 Supabase 等 Postgres 地址，让导入的折扣在重启后保留。
+   - `ANTHROPIC_API_KEY`：你的 key。不设置 `ACCESS_CODE` 时，网站打开就能用，不需要访客填 key。
+   - `DAILY_BUDGET_EUR`：全站每天的免费额度（比如 3 欧），阿姆斯特丹时间 0 点重置；用完后提示明天再来。
+   - `SESSION_BUDGET_EUR`：每个会话的上限（默认 1 欧），避免一个人用光当天的额度。
+   - `ADMIN_CODE`：只有输入这个密码的人（你）才能导入和删除折扣。
+   - `PROMOS_DATABASE_URL`：填 Supabase 等 Postgres 地址，让折扣和每天的花费记录在重启后保留。
+   - 另外建议在 Anthropic 控制台设置每月花费上限，作为最后一道保险。
 
 ## 测试
 
@@ -88,7 +90,7 @@ app.py：Streamlit 界面（对话、查询过程、折扣导入、偏好管理�
 .venv/bin/pytest -q
 ```
 
-共 100 个测试：规格解析、包装组合与折扣计算、单店/两店比价、搜索排序、ID 稳定性、
+共 111 个测试：规格解析、包装组合与折扣计算、单店/两店比价、搜索排序、ID 稳定性、
 折扣存储（SQLite 和真实 Postgres）、模拟 API 下的 agent 循环、无头运行的 Streamlit 界面测试。
 
 ## 已知局限 / 下一步

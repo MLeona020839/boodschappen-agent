@@ -5,7 +5,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from grocery_agent import agent as agent_mod
-from grocery_agent import db, promos
+from grocery_agent import db, promos, quota
 
 APP = Path(__file__).resolve().parent.parent / "app.py"
 EN_TITLE = "What's for dinner, and where is it cheapest?"
@@ -17,11 +17,14 @@ def isolated(monkeypatch, tmp_path):
         pytest.skip("needs the local price database (python -m grocery_agent update)")
     monkeypatch.setattr(db, "ensure_fresh", lambda **kw: False)
     monkeypatch.setattr(agent_mod, "check_key", lambda key: key.startswith("sk-ant-good"))
-    for name in ("ANTHROPIC_API_KEY", "ACCESS_CODE", "SHARED_DEPLOYMENT", "SESSION_BUDGET_USD"):
+    for name in ("ANTHROPIC_API_KEY", "ACCESS_CODE", "SHARED_DEPLOYMENT", "SESSION_BUDGET_EUR",
+                 "DAILY_BUDGET_EUR", "ADMIN_CODE", "USD_TO_EUR"):
         monkeypatch.delenv(name, raising=False)
-    # never touch the real promotions file
+    # never touch the real promotions file or the real daily spend
     monkeypatch.setenv("PROMOS_DATABASE_URL", f"sqlite:///{tmp_path / 'promos.db'}")
     monkeypatch.setattr(promos, "_engines", {})
+    monkeypatch.setattr(quota, "_ready", set())
+    monkeypatch.setattr(quota, "_memory", {})
 
 
 def run(query=None, **secrets):
@@ -90,7 +93,7 @@ def test_access_code_unlocks_shared_key():
     assert not unlocked(at) and "not right" in texts(at)
     at = submit_gate(at, code="pizza")
     assert unlocked(at)
-    assert "shared key" in texts(at) and "$1.00" in texts(at)
+    assert "This session: €0.00 / €1.00" in texts(at)
 
 
 def test_change_key_locks_again():
@@ -104,18 +107,24 @@ def test_server_key_without_access_code_is_open():
     assert unlocked(at)
 
 
-def test_budget_exhausted_blocks_shared_key():
-    at = run(SHARED_DEPLOYMENT="true", ANTHROPIC_API_KEY="sk-ant-server", SESSION_BUDGET_USD="0.05")
-    at.session_state["import_cost"] = 0.06
+def test_session_budget_blocks_shared_key():
+    at = run(SHARED_DEPLOYMENT="true", ANTHROPIC_API_KEY="sk-ant-server", SESSION_BUDGET_EUR="0.05")
+    at.session_state["import_cost"] = 0.06  # USD, ≈ €0.055
     at.run()
     assert at.chat_input[0].proto.disabled
-    assert any("budget" in w.value for w in at.warning)
+    assert any("This session has used" in w.value for w in at.warning)
 
 
 # ---- panel
 
-def unlocked_shared():
-    return submit_gate(run(SHARED_DEPLOYMENT="true"), key="sk-ant-good-123")
+def unlocked_shared(admin=False):
+    """A visitor with their own key; with admin=True also unlocked as the owner."""
+    at = submit_gate(run(SHARED_DEPLOYMENT="true", ADMIN_CODE="owner-123"), key="sk-ant-good-123")
+    if admin:
+        at.text_input(key="admin_code_input").input("owner-123")
+        at.button(key="admin_submit").click()
+        at.run()
+    return at
 
 
 def test_shared_preferences_stay_in_session():
@@ -128,7 +137,7 @@ def test_shared_preferences_stay_in_session():
 
 
 def test_import_dates_follow_the_store_week():
-    at = unlocked_shared()
+    at = unlocked_shared(admin=True)
     at.selectbox[0].select("jumbo").run()
     assert at.date_input(key="valid-jumbo").value == promos.promo_week("jumbo")
     at.selectbox[0].select("ah").run()
@@ -136,7 +145,7 @@ def test_import_dates_follow_the_store_week():
 
 
 def test_import_needs_a_store_then_input():
-    at = unlocked_shared()
+    at = unlocked_shared(admin=True)
     button = next(b for b in at.button if b.label == "Read and import")
     assert button.disabled and "Choose the supermarket" in texts(at)  # no default store
     at.selectbox[0].select("dirk").run()
@@ -192,7 +201,7 @@ def test_rejected_shared_key_is_explained():
 def test_working_shared_key_shows_budget():
     at = run(SHARED_DEPLOYMENT="true", ANTHROPIC_API_KEY="sk-ant-good-server", ACCESS_CODE="pizza")
     at = submit_gate(at, code="pizza")
-    assert "shared key" in texts(at) and not at.error
+    assert "This session" in texts(at) and not at.error
 
 
 def import_with_text(monkeypatch, outcome):
@@ -204,7 +213,7 @@ def import_with_text(monkeypatch, outcome):
         return outcome
 
     monkeypatch.setattr(importer, "import_promotions", fake_import)
-    at = unlocked_shared()
+    at = unlocked_shared(admin=True)
     at.selectbox[0].select("dirk").run()
     at.text_area(key="paste-0").input("Grillworst 1.69").run()
     next(b for b in at.button if b.label == "Read and import").click().run()
@@ -226,3 +235,91 @@ def test_inputs_stay_when_the_import_fails(monkeypatch):
     at = import_with_text(monkeypatch, RuntimeError("could not read the folder"))
     assert "Import failed" in texts(at)
     assert at.text_area(key="paste-0").value == "Grillworst 1.69"  # kept for a retry
+
+
+
+# ---- open app with a shared daily budget
+
+OPEN = dict(SHARED_DEPLOYMENT="true", ANTHROPIC_API_KEY="sk-ant-good-server", DAILY_BUDGET_EUR="3",
+            USD_TO_EUR="1")
+
+
+def test_open_app_needs_no_key_and_shows_the_daily_budget():
+    at = run(**OPEN)
+    assert unlocked(at) and not at.chat_input[0].proto.disabled
+    assert "Free today: €3.00 of €3.00 left" in texts(at)
+
+
+def test_daily_budget_used_up_blocks_everyone():
+    quota.record(3.20)  # USD; at USD_TO_EUR=1 that is more than €3
+    at = run(**OPEN)
+    assert at.chat_input[0].proto.disabled
+    assert any("come back tomorrow" in w.value and "midnight" in w.value for w in at.warning)
+    assert "Free today: €0.00 of €3.00 left" in texts(at)
+
+
+def test_chat_cost_counts_against_the_daily_budget(monkeypatch):
+    from grocery_agent.agent import Agent
+
+    def fake_ask(self, prompt):
+        self.usage["output"] += 10_000  # $0.20 at $20 / million output tokens
+        return "Here is your plan."
+
+    monkeypatch.setattr(Agent, "ask", fake_ask)
+    at = run(**OPEN)
+    at.chat_input[0].set_value("Plan two dinners").run()
+    assert abs(quota.spent_today_usd() - 0.20) < 1e-9
+    assert "Free today: €2.80 of €3.00 left" in texts(at)
+
+
+def test_cost_is_counted_even_when_the_turn_fails(monkeypatch):
+    import anthropic
+    import httpx2
+    from grocery_agent.agent import Agent
+
+    def failing_ask(self, prompt):
+        self.usage["output"] += 5_000  # tokens already used before the error
+        raise anthropic.APIConnectionError(request=httpx2.Request("POST", "https://api.anthropic.com"))
+
+    monkeypatch.setattr(Agent, "ask", failing_ask)
+    at = run(**OPEN)
+    at.chat_input[0].set_value("Plan two dinners").run()
+    assert abs(quota.spent_today_usd() - 0.10) < 1e-9
+
+
+# ---- only the owner manages promotions
+
+def seed_promo():
+    from grocery_agent.promos import ExtractedPromo
+    p = ExtractedPromo(title="AH Boerenkool", label="voor 0.99", kind="promo_price", price=0.99,
+                       search_query="boerenkool")
+    start, end = promos.promo_week("ah")
+    promos.add(promos.connect(), "ah", p, [1, 2], start.isoformat(), end.isoformat(), "test")
+
+
+def test_visitors_cannot_import_or_delete_promotions():
+    seed_promo()
+    at = run(**OPEN, ADMIN_CODE="owner-123")
+    assert not any(b.label == "Read and import" for b in at.button)
+    assert not any(b.label == "✕" and b.key.startswith("del-promo") for b in at.button)
+    assert any(e.label == "Manage promotions (owner)" for e in at.expander)
+
+
+def test_wrong_admin_code_is_rejected_and_right_one_unlocks():
+    seed_promo()
+    at = run(**OPEN, ADMIN_CODE="owner-123")
+    at.text_input(key="admin_code_input").input("guess")
+    at.button(key="admin_submit").click()
+    at.run()
+    assert any("not right" in e.value for e in at.error)
+    at.text_input(key="admin_code_input").input("owner-123")
+    at.button(key="admin_submit").click()
+    at.run()
+    assert any(b.label == "Read and import" for b in at.button)
+    assert any(b.key and b.key.startswith("del-promo") for b in at.button)
+
+
+def test_without_admin_code_nobody_can_import():
+    at = run(**OPEN)
+    assert not any(b.label == "Read and import" for b in at.button)
+    assert "no ADMIN_CODE is configured" in texts(at)

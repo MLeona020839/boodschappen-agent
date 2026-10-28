@@ -2,7 +2,9 @@
 
 Layout: chat on the left, a tools panel on the right (promotion import, preferences, spend), so
 screenshots dragged from the bottom-right corner of the screen land right next to the upload box.
-Visitors first unlock the app with an access code or their own API key.
+With a server key and no access code the app is open to everyone, within a shared daily budget
+(DAILY_BUDGET_EUR) and a per-session budget (SESSION_BUDGET_EUR). Only the owner (ADMIN_CODE) can
+import or delete promotions on a shared deployment.
 
 Configuration (env vars locally, Streamlit secrets when deployed) is described in
 grocery_agent/settings.py.
@@ -18,7 +20,7 @@ import sqlalchemy as sa
 import streamlit as st
 
 from grocery_agent import agent as agent_mod
-from grocery_agent import db, i18n, prefs, promos, settings
+from grocery_agent import db, i18n, prefs, promos, quota, settings
 from grocery_agent.agent import PRICE, Agent
 
 # After a git push, Streamlit Cloud reruns app.py but can keep older copies of imported modules.
@@ -31,8 +33,9 @@ st.set_page_config(page_title="Boodschappen Agent", page_icon="🛒", layout="wi
 SHARED = settings.flag("SHARED_DEPLOYMENT")
 SERVER_KEY = settings.get("ANTHROPIC_API_KEY")
 ACCESS_CODE = settings.get("ACCESS_CODE")
-BUDGET = settings.number("SESSION_BUDGET_USD", 1.00)
-OPEN_SERVER_KEY = bool(SERVER_KEY) and not ACCESS_CODE  # e.g. running locally with your own key
+ADMIN_CODE = settings.get("ADMIN_CODE")
+SESSION_BUDGET_EUR = settings.number("SESSION_BUDGET_EUR", 1.00)
+OPEN_SERVER_KEY = bool(SERVER_KEY) and not ACCESS_CODE  # open to everyone on the server's key
 
 
 def describe_tool(t, name: str, args: dict) -> str:
@@ -72,11 +75,13 @@ if "history" not in ss:
     ss.import_cost = 0.0       # $ spent on promotion imports this session
     ss.access_ok = False       # entered the right access code
     ss.api_key = ""            # the visitor's own key; kept in this session only
+    ss.admin_ok = False        # entered the owner's admin code
     ss.prefs_store = prefs.MemoryStore() if SHARED else prefs.FileStore()
 prefs.use_store(ss.prefs_store)  # each visitor gets their own preferences on a shared deployment
 
 
 def session_cost() -> float:
+    """US dollars spent in this browser session."""
     return (ss.agent.cost if ss.agent else 0.0) + ss.import_cost
 
 
@@ -165,8 +170,14 @@ if client is None:
         st.caption(t("gate_get_key"))
     st.stop()
 
-over_budget = key_mode == "server" and SHARED and session_cost() >= BUDGET
-can_call = not over_budget
+# Free use on the server's key is limited per day (all visitors) and per session.
+on_server_key = key_mode == "server" and SHARED
+day_left = quota.remaining_eur() if on_server_key else None
+session_spent_eur = session_cost() * quota.usd_to_eur()
+day_exhausted = day_left is not None and day_left <= 0
+session_exhausted = on_server_key and session_spent_eur >= SESSION_BUDGET_EUR
+can_call = not (day_exhausted or session_exhausted)
+can_manage = not SHARED or ss.admin_ok  # import / delete promotions
 
 chat_col, panel = st.columns([2, 1], gap="large")
 
@@ -180,8 +191,12 @@ with panel:
         status_box.success(t("using_own_key"), icon=":material/key:")
     elif shared_key_works(SERVER_KEY) is False:
         status_box.error(t("shared_key_rejected"), icon=":material/key_off:")
-    elif SHARED or ACCESS_CODE:
-        status_box.info(t("using_shared_key", spent=session_cost(), budget=BUDGET), icon=":material/group:")
+    elif on_server_key and day_left is not None:
+        status_box.info(t("free_left", left=day_left, total=quota.daily_budget_eur(),
+                          spent=session_spent_eur, session=SESSION_BUDGET_EUR), icon=":material/redeem:")
+    elif on_server_key:
+        status_box.info(t("session_left", spent=session_spent_eur, session=SESSION_BUDGET_EUR),
+                        icon=":material/group:")
     if not OPEN_SERVER_KEY and status_box.button(t("change_key"), type="tertiary", key="change_key"):
         ss.api_key, ss.access_ok = "", False
         st.rerun()
@@ -203,10 +218,10 @@ with panel:
                 c1, c2 = st.columns([5, 1], vertical_alignment="center")
                 line = t("promo_line", label=pr["label"], n=pr["n_products"], until=pr["valid_to"] or "?")
                 c1.markdown(f"**{pr['store'].upper()}** · {pr['title']}  \n:small[{line}]")
-                if c2.button("✕", key=f"del-promo-{pr['id']}", help=t("promo_delete")):
+                if can_manage and c2.button("✕", key=f"del-promo-{pr['id']}", help=t("promo_delete")):
                     promos.delete(engine, pr["id"])
                     st.rerun()
-            if st.button(t("promos_cleanup"), width="stretch"):
+            if can_manage and st.button(t("promos_cleanup"), width="stretch"):
                 n = promos.delete_expired(engine)
                 st.toast(t("promos_removed", n=n))
                 st.rerun()
@@ -214,7 +229,20 @@ with panel:
         st.caption(t("promos_none"))
 
     stores = db.stores(con)
-    if engine is not None:
+    if engine is not None and SHARED and not ss.admin_ok:
+        # Visitors can use the promotions; only the owner can add or remove them.
+        with st.expander(t("admin_title"), expanded=False):
+            if not ADMIN_CODE:
+                st.caption(t("admin_not_set"))
+            else:
+                with st.form("admin", border=False):
+                    code = st.text_input(t("admin_code"), type="password", key="admin_code_input")
+                    if st.form_submit_button(t("admin_unlock"), key="admin_submit"):
+                        if hmac.compare_digest(code.strip().encode(), ADMIN_CODE.encode()):
+                            ss.admin_ok = True
+                            st.rerun()
+                        st.error(t("access_wrong"))
+    if engine is not None and can_manage:
         with st.expander(t("promos_import"), expanded=not active):
             store_options = {c: n for c, n, _ in stores}
             # No default store: importing a Dirk folder as "AH" was too easy.
@@ -246,8 +274,10 @@ with panel:
                         res = import_promotions(store, files=[(f.name, f.getvalue()) for f in files or []],
                                                 text=text, valid_from=vf, valid_to=vt, client=client)
                         ss.import_result = res
-                        ss.import_cost += (res.input_tokens * PRICE["input"]
-                                           + res.output_tokens * PRICE["output"]) / 1_000_000
+                        cost = (res.input_tokens * PRICE["input"] + res.output_tokens * PRICE["output"]) / 1_000_000
+                        ss.import_cost += cost
+                        if on_server_key:
+                            quota.record(cost)
                         ss.upload_round = upload_round + 1  # clear the inputs; on failure they stay for a retry
                     except anthropic.AuthenticationError:
                         st.error(t("import_bad_key") if key_mode == "own" else t("shared_key_rejected"))
@@ -307,8 +337,10 @@ with panel:
 # ---------------------------------------------------------------- chat (left)
 
 with chat_col:
-    if over_budget:
-        st.warning(t("over_budget", budget=BUDGET))
+    if day_exhausted:
+        st.warning(t("day_exhausted", total=quota.daily_budget_eur()), icon=":material/bedtime:")
+    elif session_exhausted:
+        st.warning(t("session_exhausted", session=SESSION_BUDGET_EUR), icon=":material/hourglass_bottom:")
 
     messages = st.container(height=560, border=False, autoscroll=True)
     with messages:
@@ -328,7 +360,7 @@ with chat_col:
                     prompt = ex
 
     bottom = st.container(horizontal=True, vertical_alignment="center")
-    typed = bottom.chat_input(t("chat_placeholder"), disabled=not can_call)
+    typed = bottom.chat_input(t("chat_placeholder"), disabled=not can_call, max_chars=1000)
     if ss.history and bottom.button(":material/add_comment:", help=t("new_chat"), key="new_chat"):
         ss.agent = None
         ss.history = []
@@ -356,6 +388,7 @@ with chat_col:
                     status.update(label=t("working", n=len(steps)))
 
                 agent.on_tool = on_tool
+                cost_before = agent.cost
                 try:
                     answer = agent.ask(prompt)  # rolls itself back if interrupted
                     status.update(label=t("done", n=len(steps)), state="complete", expanded=False)
@@ -369,6 +402,10 @@ with chat_col:
                         answer = t("err_status", code=e.status_code, message=e.message)
                     else:
                         answer = t("err_conn")
+                finally:
+                    # Tokens already used count against today's budget even if the turn failed.
+                    if on_server_key:
+                        quota.record(agent.cost - cost_before)
                 st.markdown(answer)
         ss.history.append({"role": "user", "content": prompt})
         ss.history.append({"role": "assistant", "content": answer, "steps": steps})

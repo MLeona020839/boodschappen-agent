@@ -23,8 +23,8 @@ def test_translator_formats_and_falls_back_to_english():
 
 
 def test_dollar_signs_are_escaped_for_markdown():
-    text = translator("en")("using_shared_key", spent=0.5, budget=1)
-    assert "\\$0.50" in text and "\\$1.00" in text
+    text = translator("en")("err_status", code=400, message="costs $1 or $2")
+    assert "\\$1" in text and "\\$2" in text
 
 
 def test_settings_strip_pasted_whitespace(monkeypatch):

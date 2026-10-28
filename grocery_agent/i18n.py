@@ -5,6 +5,14 @@ LANGUAGES = {"en": "English", "nl": "Nederlands", "zh": "中文"}
 
 TEXT: dict[str, dict[str, str]] = {
     "en": {
+        "free_left": "Free today: €{left:.2f} of €{total:.2f} left for everyone · this session €{spent:.2f} / €{session:.2f}",
+        "session_left": "This session: €{spent:.2f} / €{session:.2f}",
+        "day_exhausted": "Today's free budget of €{total:.2f} has been used up. Please come back tomorrow: it resets at midnight (Amsterdam time).",
+        "session_exhausted": "This session has used its €{session:.2f}, so that others can use today's free budget too. Please come back tomorrow.",
+        "admin_title": "Manage promotions (owner)",
+        "admin_not_set": "Importing promotions is turned off: no ADMIN_CODE is configured.",
+        "admin_code": "Admin code",
+        "admin_unlock": "Unlock",
         "store_choose": "Choose the supermarket",
         "import_needs_store": "Choose the supermarket the promotions are from.",
         "store_switched": "The folder is from {seen}, not {chosen}, so the promotions were imported for {seen}.",
@@ -36,7 +44,6 @@ TEXT: dict[str, dict[str, str]] = {
         "access_code": "Or enter an access code to use the shared key",
         "access_wrong": "That access code is not right.",
         "using_own_key": "Using your own key",
-        "using_shared_key": "Using the shared key · this session ${spent:.2f} / ${budget:.2f}",
         # prices
         "prices": "Prices",
         "prices_caption": "Data from {date} · {stores} supermarkets · {products:,} products · refreshed daily",
@@ -75,8 +82,6 @@ TEXT: dict[str, dict[str, str]] = {
         "usage_caption": "≈ ${cost:.3f} · chat input {inp:,} / output {out:,} tokens",
         "new_chat": "🆕 New conversation",
         # chat
-        "over_budget": "The shared key's budget for this session (${budget:.2f}) is used up. "
-                       "Click “Change key” on the right to continue with your own API key.",
         "steps": "How I got there ({n} steps)",
         "chat_placeholder": "Ask in English, Dutch, Chinese…",
         "thinking": "Thinking…",
@@ -97,6 +102,14 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Forgetting: {note}",
     },
     "nl": {
+        "free_left": "Vandaag gratis: nog €{left:.2f} van €{total:.2f} voor iedereen · deze sessie €{spent:.2f} / €{session:.2f}",
+        "session_left": "Deze sessie: €{spent:.2f} / €{session:.2f}",
+        "day_exhausted": "Het gratis budget van vandaag (€{total:.2f}) is op. Kom morgen terug: het wordt om middernacht (Amsterdamse tijd) weer aangevuld.",
+        "session_exhausted": "Deze sessie heeft haar €{session:.2f} gebruikt, zodat anderen ook van het gratis budget van vandaag kunnen gebruikmaken. Kom morgen terug.",
+        "admin_title": "Aanbiedingen beheren (eigenaar)",
+        "admin_not_set": "Aanbiedingen importeren staat uit: er is geen ADMIN_CODE ingesteld.",
+        "admin_code": "Beheerderscode",
+        "admin_unlock": "Ontgrendelen",
         "store_choose": "Kies de supermarkt",
         "import_needs_store": "Kies van welke supermarkt de aanbiedingen zijn.",
         "store_switched": "De folder is van {seen}, niet van {chosen}. De aanbiedingen zijn daarom voor {seen} geïmporteerd.",
@@ -127,7 +140,6 @@ TEXT: dict[str, dict[str, str]] = {
         "access_code": "Of vul een toegangscode in om de gedeelde sleutel te gebruiken",
         "access_wrong": "Die toegangscode klopt niet.",
         "using_own_key": "Je gebruikt je eigen sleutel",
-        "using_shared_key": "Je gebruikt de gedeelde sleutel · deze sessie ${spent:.2f} / ${budget:.2f}",
         "prices": "Prijzen",
         "prices_caption": "Gegevens van {date} · {stores} supermarkten · {products:,} producten · dagelijks bijgewerkt",
         "prices_update": "⬇️ Prijzen nu bijwerken",
@@ -161,8 +173,6 @@ TEXT: dict[str, dict[str, str]] = {
         "usage": "Kosten deze sessie",
         "usage_caption": "≈ ${cost:.3f} · invoer {inp:,} / uitvoer {out:,} tokens",
         "new_chat": "🆕 Nieuw gesprek",
-        "over_budget": "Het budget van de gedeelde sleutel voor deze sessie (${budget:.2f}) is op. "
-                       "Klik rechts op „Andere sleutel” om verder te gaan met je eigen API-sleutel.",
         "steps": "Zo kwam ik erop ({n} stappen)",
         "chat_placeholder": "Vraag het in het Nederlands, Engels, Chinees…",
         "thinking": "Even nadenken…",
@@ -182,6 +192,14 @@ TEXT: dict[str, dict[str, str]] = {
         "tool_forget": "🗑️ Vergeten: {note}",
     },
     "zh": {
+        "free_left": "今日免费额度：全站还剩 €{left:.2f} / €{total:.2f} · 本次会话 €{spent:.2f} / €{session:.2f}",
+        "session_left": "本次会话：€{spent:.2f} / €{session:.2f}",
+        "day_exhausted": "今天 €{total:.2f} 的免费额度已经用完了，请明天再来。额度在阿姆斯特丹时间午夜 0 点重置。",
+        "session_exhausted": "本次会话已用完 €{session:.2f} 的额度，把今天剩下的免费额度留给其他人。请明天再来。",
+        "admin_title": "管理折扣（网站所有者）",
+        "admin_not_set": "导入折扣功能已关闭：还没有设置 ADMIN_CODE。",
+        "admin_code": "管理员密码",
+        "admin_unlock": "解锁",
         "store_choose": "选择超市",
         "import_needs_store": "请先选择这些折扣属于哪家超市。",
         "store_switched": "传单上是 {seen}，不是 {chosen}，所以这些折扣按 {seen} 导入了。",
@@ -212,7 +230,6 @@ TEXT: dict[str, dict[str, str]] = {
         "access_code": "或者输入邀请码，使用共享 key",
         "access_wrong": "邀请码不对",
         "using_own_key": "正在使用你自己的 key",
-        "using_shared_key": "正在使用共享 key · 本次额度 ${spent:.2f} / ${budget:.2f}",
         "prices": "价格数据",
         "prices_caption": "数据日期 {date} · {stores} 家超市 · {products:,} 个商品 · 每天自动更新",
         "prices_update": "⬇️ 立即更新价格",
@@ -246,8 +263,6 @@ TEXT: dict[str, dict[str, str]] = {
         "usage": "本次花费",
         "usage_caption": "约 ${cost:.3f} · 对话输入 {inp:,} / 输出 {out:,} tokens",
         "new_chat": "🆕 新对话",
-        "over_budget": "共享 key 在这次会话里的额度（${budget:.2f}）已经用完。"
-                       "点右侧的「更换 key」，换成你自己的 API key 继续使用。",
         "steps": "查询过程（{n} 步）",
         "chat_placeholder": "用中文、英文或荷兰语提问…",
         "thinking": "正在思考…",

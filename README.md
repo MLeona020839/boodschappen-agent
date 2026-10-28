@@ -20,7 +20,7 @@ cheapest across 10 Dutch supermarkets (AH, Jumbo, Lidl, Plus, Dirk and more, abo
   Claude reads the deals, matches them to products, and pricing then applies
   1+1 gratis, "2 voor €5", 25% korting, 2e halve prijs and plain price cuts.
 - **Remembers preferences**: household size, dislikes, favourite stores.
-- **Shareable**: visitors unlock it with their own API key (checked for free before use), or with an access code for yours, with a per-session spend cap.
+- **Free to try, with a hard cost ceiling**: open to everyone on the owner's key within a shared daily budget (e.g. €3, resetting at midnight Amsterdam time) and a per-session cap, tracked in Postgres; only the owner can import or delete promotions.
 - **English, Dutch or Chinese UI** (switch top right, or link to `?lang=Nederlands` / `?lang=中文`); the agent replies in whatever language you write.
 - **Chat on the left, tools on the right**: drop screenshots from the bottom-right corner of your screen straight onto the promotion upload box.
 
@@ -64,13 +64,14 @@ the model calls as a tool. The model never adds up prices itself.
 
 ## Testing
 
-100 tests (`pytest -q`):
+111 tests (`pytest -q`):
 
 - unit-size parsing, knapsack and promotion pricing, single/two-store comparison
 - database build, search ranking, and id stability across refreshes
 - promotion storage on SQLite and on **real Postgres** (via `pgserver`, optional)
 - the agent tool loop against a **mocked Messages API** (request shape, history, per-session preferences)
-- the Streamlit UI headless with `AppTest` (unlock gate, access code, spend cap, per-session preferences, store promotion weeks, language switch)
+- the Streamlit UI headless with `AppTest` (open access, daily and session budgets, cost recorded even for failed turns, owner-only promotion management, per-session preferences, store promotion weeks, language switch)
+- the daily spend ledger, including its in-memory fallback when the database is down
 - graceful degradation when the promotions database is unreachable (e.g. a paused Supabase project)
 
 Live runs: planning four dinners for two around 50 imported AH promotions took 19 tool steps and
@@ -94,21 +95,26 @@ export ANTHROPIC_API_KEY=sk-ant-...
 3. Under *Advanced settings → Secrets*, paste the settings from
    [`.streamlit/secrets.example.toml`](.streamlit/secrets.example.toml). At minimum set
    `SHARED_DEPLOYMENT = "true"`. Add `PROMOS_DATABASE_URL` (for example a free Supabase Postgres)
-   so imported promotions survive restarts.
+   so imported promotions and the daily spend survive restarts.
+4. Also set a monthly spend limit in the Anthropic Console as a last line of defence.
 
 | Setting | Purpose |
 |---|---|
 | `SHARED_DEPLOYMENT` | Per-visitor preferences; prices refresh automatically |
-| `ANTHROPIC_API_KEY` + `ACCESS_CODE` | Optional shared key, unlocked by an access code |
-| `SESSION_BUDGET_USD` | Spend cap per browser session on the shared key (default $1) |
-| `PROMOS_DATABASE_URL` | SQLAlchemy / Postgres URL for promotions (default: local SQLite) |
+| `ANTHROPIC_API_KEY` | Your key; without `ACCESS_CODE` the app is open to everyone on it |
+| `DAILY_BUDGET_EUR` | Free budget per day for all visitors together (resets at midnight, Amsterdam) |
+| `SESSION_BUDGET_EUR` | Spend cap per browser session, so one visitor can't use up the day (default €1) |
+| `USD_TO_EUR` | Exchange rate for the budgets, since Anthropic bills in USD (default 0.92) |
+| `ADMIN_CODE` | Unlocks importing and deleting promotions for the owner |
+| `ACCESS_CODE` | Optional: require a code before anyone can use the shared key |
+| `PROMOS_DATABASE_URL` | SQLAlchemy / Postgres URL for promotions and the daily spend (default: local SQLite) |
 
 ## Limitations and next steps
 
 - Promotions are imported by hand (screenshot or paste). Fetching them automatically would
   mean unofficial supermarket APIs, which their terms of service likely forbid.
 - The Lidl feed often lacks pack sizes (about 75%); those items are estimated as one pack.
-- The spend cap is per browser session; the access code is the real gate on the shared key.
+- The daily budget is checked before each request, so simultaneous requests can overshoot it by a few tens of cents. The per-session cap can be reset by reloading the page; the daily budget cannot.
 - Next: an evaluation set for cross-store product matching (precision and recall), and a
   comparison of estimated against actual receipt totals.
 
