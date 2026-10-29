@@ -18,13 +18,15 @@ import urllib.error
 import urllib.request
 import zlib
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from urllib.parse import urljoin, urlsplit
+from zoneinfo import ZoneInfo
 
 USER_AGENT = "BoodschappenAgent/1.0 (+https://github.com/MLeona020839/boodschappen-agent)"
 MAX_BYTES = 5_000_000
 MAX_CHARS = 40_000
 MIN_CHARS = 400   # less than this is a cookie wall, an error page or a JavaScript-only shell
-MAX_FOLDER_PAGES = 40
+MAX_FOLDER_PAGES = 50   # AH's weekly folder has about 45 pages
 
 STORE_DOMAINS = {
     "ah": ("ah.nl",), "dekamarkt": ("dekamarkt.nl",), "dirk": ("dirk.nl",),
@@ -36,7 +38,6 @@ FOLDER_CDN = "cdn.jafolders.com"
 FOLDER_SLUGS = {"albert-heijn": "ah"}   # every other store's slug is its code
 # /albert-heijn-aanbiedingen/<folder id>/0 (a folder) or /albert-heijn/folder-aanbiedingen (the store)
 _FOLDER_PATH = re.compile(r"^/([a-z0-9-]+?)(?:-aanbiedingen/[0-9a-f-]{36}(?:/\d+)?|/folder-aanbiedingen)/?$")
-_FOLDER_LINK = re.compile(r'href="(/[a-z0-9-]+-aanbiedingen/[0-9a-f-]{36}/0)"')
 _FOLDER_IMAGE = re.compile(r"https://cdn\.jafolders\.com/pages/[0-9a-f-]{36}/large\.webp")
 
 
@@ -49,6 +50,17 @@ class Page:
     store: str
     text: str = ""
     files: list[tuple[str, bytes]] = field(default_factory=list)
+    valid_from: str | None = None   # the folder's own validity, when the site states it
+    valid_to: str | None = None
+    source: str | None = None       # the folder's address, when a store page led to it
+
+
+@dataclass
+class Folder:
+    id: str
+    shop: str
+    active_from: date
+    expire_after: date
 
 
 def _host(url: str) -> str:
@@ -139,6 +151,43 @@ def fetch(url: str, timeout: float = 20) -> tuple[str, str]:
     return store, text[:MAX_CHARS]
 
 
+def _local_day(stamp: str) -> date:
+    return datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Amsterdam")).date()
+
+
+def folders_in(raw: str) -> list[Folder]:
+    """The folders described in a page's embedded data (allefolders renders its cards with JavaScript)."""
+    raw = raw.replace('\\"', '"')
+    out = {}
+    for chunk in raw.split('{"__typename":"BrochureEntity"')[1:]:
+        fid = re.search(r'"id":"([0-9a-f-]{36})","name"', chunk)       # the folder's id, not its cover's
+        start, end = re.search(r'"activeFrom":"([^"]+)"', chunk), re.search(r'"expireAfter":"([^"]+)"', chunk)
+        shop = re.search(r'"slug":"([a-z0-9-]+)"', chunk)
+        if fid and start and end and shop:
+            out[fid.group(1)] = Folder(fid.group(1), shop.group(1), _local_day(start.group(1)), _local_day(end.group(1)))
+    return list(out.values())
+
+
+def _images(raw: str) -> list[str]:
+    return list(dict.fromkeys(_FOLDER_IMAGE.findall(raw)))   # page order, no repeats
+
+
+def weekly_folder(raw: str, slug: str, get, today: date | None = None) -> tuple[Folder, str]:
+    """The store's folder for this week: valid today, preferably running a week or less (not a
+    month-long special such as a Christmas folder), and of those the one with the most pages."""
+    today = today or datetime.now(ZoneInfo("Europe/Amsterdam")).date()
+    current = [f for f in folders_in(raw) if f.shop == slug and f.active_from <= today <= f.expire_after]
+    if not current:
+        raise PageError("No current folder found on that page.")
+    weekly = [f for f in current if (f.expire_after - f.active_from).days <= 7] or current
+    viewers = {f.id: get(f"https://www.{FOLDER_SITE}/{slug}-aanbiedingen/{f.id}/0") for f in weekly}
+    best = max(weekly, key=lambda f: (len(_images(viewers[f.id])), f.active_from))
+    if not _images(viewers[best.id]):
+        raise PageError("allefolders.nl only links to this store's own folder, without its pages. "
+                        "Use screenshots instead.")
+    return best, viewers[best.id]
+
+
 def folder_pages(url: str, timeout: float = 20) -> Page:
     """The page images of a folder on allefolders.nl, or PageError."""
     m = _FOLDER_PATH.match(urlsplit(url.strip()).path)
@@ -146,18 +195,23 @@ def folder_pages(url: str, timeout: float = 20) -> Page:
     store = FOLDER_SLUGS.get(slug, slug)
     if store not in STORE_DOMAINS:
         raise PageError("Open a supported supermarket's folder on allefolders.nl and copy its address.")
-    raw = _get(url, "text/html", timeout)[0].decode("utf-8", errors="replace")
-    if "/folder-aanbiedingen" in url:   # the store's page: take its newest folder
-        link = _FOLDER_LINK.search(raw)
-        if not link:
-            raise PageError("No current folder found on that page.")
-        raw = _get(urljoin(url, link.group(1)), "text/html", timeout)[0].decode("utf-8", errors="replace")
-    images = list(dict.fromkeys(_FOLDER_IMAGE.findall(raw)))   # page order, no repeats
+    get = lambda u: _get(u, "text/html", timeout)[0].decode("utf-8", errors="replace")
+    raw = get(url)
+    source = url.strip()
+    if "/folder-aanbiedingen" in url:   # the store's page: take this week's folder
+        folder, raw = weekly_folder(raw, slug, get)
+        source = f"https://www.{FOLDER_SITE}/{slug}-aanbiedingen/{folder.id}/0"
+    else:
+        fid = re.search(r"[0-9a-f-]{36}", urlsplit(url).path).group(0)
+        folder = next((f for f in folders_in(raw) if f.id == fid), None)
+    images = _images(raw)
     if not images:
         raise PageError("No folder pages found at that address.")
     files = [(f"{store}-folder-p{i:02d}.webp", _get(src, "image/webp", timeout)[0])
              for i, src in enumerate(images[:MAX_FOLDER_PAGES], 1)]
-    return Page(store, files=files)
+    return Page(store, files=files, source=source,
+                valid_from=folder.active_from.isoformat() if folder else None,
+                valid_to=folder.expire_after.isoformat() if folder else None)
 
 
 def read(url: str) -> Page:

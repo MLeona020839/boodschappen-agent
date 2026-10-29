@@ -94,22 +94,65 @@ def _pages(n):
                    for i in range(n))
 
 
+def _brochure(fid, start, end, slug="albert-heijn"):
+    # the shape of allefolders' embedded data: cover first, then the folder's own fields, then its shop
+    return ('{"__typename":"BrochureEntity","activeFrom":"%s","cover":{"__typename":"PageEntity",'
+            '"id":"99999999-0000-0000-0000-000000000000","imageRatio":0.7},"expireAfter":"%s",'
+            '"hotspotMode":"LINKS","id":"%s","name":"AH","position":1,"publishedAt":"%s",'
+            '"shop":{"__typename":"ShopEntity","id":"x","slug":"%s"}}' % (start, end, fid, start, slug))
+
+
+WEEK = "11111111-0000-0000-0000-000000000000"
+XMAS = "22222222-0000-0000-0000-000000000000"
+TINY = "33333333-0000-0000-0000-000000000000"
+STORE_PAGE = ('<script id="__NUXT_DATA__">' + _brochure(XMAS, "2026-10-27T23:00:00Z", "2026-11-22T22:59:00Z")
+              + _brochure(WEEK, "2026-10-25T23:00:00Z", "2026-11-01T22:59:00Z")
+              + _brochure(TINY, "2026-10-25T23:00:00Z", "2026-11-01T22:59:00Z") + "</script>")
+
+
+def test_folders_in_reads_ids_and_local_dates():
+    folders = {f.id: f for f in webpage.folders_in(STORE_PAGE)}
+    assert str(folders[WEEK].active_from) == "2026-10-26" and str(folders[WEEK].expire_after) == "2026-11-01"
+    assert folders[XMAS].shop == "albert-heijn"
+
+
+def test_weekly_folder_skips_long_specials_and_takes_the_biggest():
+    from datetime import date
+    pages = {WEEK: _pages(3), TINY: _pages(1), XMAS: _pages(5)}
+    get = lambda url: next(v for k, v in pages.items() if k in url)
+    folder, viewer = webpage.weekly_folder(STORE_PAGE, "albert-heijn", get, today=date(2026, 10, 29))
+    assert folder.id == WEEK and len(webpage._images(viewer)) == 3
+
+
+def test_weekly_folder_without_pages_is_explained():
+    from datetime import date
+    with pytest.raises(webpage.PageError, match="screenshots"):
+        webpage.weekly_folder(STORE_PAGE, "albert-heijn", lambda url: "<p>cover only</p>", today=date(2026, 10, 29))
+
+
 def test_folder_pages_downloads_each_page_once_in_order(monkeypatch):
     fetched = []
 
     def open_(req, timeout):
         fetched.append(req.full_url)
         if req.full_url.endswith("/folder-aanbiedingen"):
-            return _Response(f'<a href="{FOLDER[len("https://www.allefolders.nl"):]}">week 44</a>'.encode())
-        if "allefolders" in req.full_url:
+            return _Response(STORE_PAGE.encode())
+        if WEEK in req.full_url:
             return _Response(_pages(3).encode())
+        if "allefolders" in req.full_url:
+            return _Response(_pages(1).encode())
         return _Response(b"webp-bytes")
     monkeypatch.setattr(webpage._opener, "open", open_)
+    monkeypatch.setattr(webpage, "weekly_folder", lambda raw, slug, get: next(
+        (f, get(f"https://www.allefolders.nl/{slug}-aanbiedingen/{f.id}/0"))
+        for f in webpage.folders_in(raw) if f.id == WEEK))
 
     page = webpage.read("https://www.allefolders.nl/albert-heijn/folder-aanbiedingen")
     assert page.store == "ah" and page.text == ""
+    assert (page.valid_from, page.valid_to) == ("2026-10-26", "2026-11-01")
+    assert page.source.endswith(f"/albert-heijn-aanbiedingen/{WEEK}/0")
     assert [n for n, _ in page.files] == ["ah-folder-p01.webp", "ah-folder-p02.webp", "ah-folder-p03.webp"]
-    assert fetched[1] == FOLDER and fetched[2].startswith("https://cdn.jafolders.com/pages/00000000-")
+    assert fetched[2].startswith("https://cdn.jafolders.com/pages/00000000-")
 
 
 def test_folder_pages_are_capped(monkeypatch):

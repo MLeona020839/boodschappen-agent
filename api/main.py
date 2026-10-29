@@ -388,14 +388,18 @@ def admin_import(store: str = Form(...), valid_from: str | None = Form(None), va
             page = webpage.read(url)
         except webpage.PageError as e:
             raise HTTPException(400, str(e))
+        # Dates left empty or at the chosen store's default week follow the folder instead.
+        untouched = not (valid_from or valid_to) or (valid_from, valid_to) == tuple(
+            d.isoformat() for d in promos.promo_week(store))
         if page.store != store:
-            # Dates left at the chosen store's default week follow the address's store instead.
-            if (valid_from, valid_to) == tuple(d.isoformat() for d in promos.promo_week(store)):
-                valid_from, valid_to = (d.isoformat() for d in promos.promo_week(page.store))
             switched_from, store = store, page.store
+            if untouched:
+                valid_from, valid_to = (d.isoformat() for d in promos.promo_week(page.store))
+        if untouched and page.valid_from and page.valid_to:
+            valid_from, valid_to = page.valid_from, page.valid_to
         blobs += page.files
         text = f"{text.strip()}\n\n{page.text}".strip()
-        source = url.strip()
+        source = page.source or url.strip()
     if not blobs and not text.strip():
         raise HTTPException(400, "Add screenshots, a web address or paste text.")
 
