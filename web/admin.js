@@ -68,6 +68,7 @@ async function loadRows() {
 }
 
 const MAX_FILES = 10;
+const MAX_FILE_MB = 20, MAX_TOTAL_MB = 22;   // see MAX_UPLOAD_BYTES in api/main.py
 const ACCEPTED = /^(image\/(png|jpeg|webp)|application\/pdf)$/;
 
 // Adds to the list (dropping or picking again no longer replaces earlier files).
@@ -165,6 +166,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!$("#store").value && fromUrl) $("#store").value = fromUrl.value;
     if (!$("#store").value) { msg.textContent = "Choose the supermarket first."; msg.className = "small msg-err"; return; }
     if (!chosen.length && !$("#url").value.trim() && !$("#text").value.trim()) { msg.textContent = "Add screenshots, a web address or paste text."; msg.className = "small msg-err"; return; }
+    const tooBig = chosen.find((f) => f.size > MAX_FILE_MB * 1024 * 1024);
+    if (tooBig) { showMsg(`${tooBig.name} is larger than ${MAX_FILE_MB} MB. Use a smaller file or screenshots.`, true); return; }
+    if (chosen.reduce((n, f) => n + f.size, 0) > MAX_TOTAL_MB * 1024 * 1024) { showMsg(`Together the files are larger than ${MAX_TOTAL_MB} MB. Import them in smaller groups.`, true); return; }
     const form = new FormData();
     form.append("store", $("#store").value);
     if ($("#from").value) form.append("valid_from", $("#from").value);

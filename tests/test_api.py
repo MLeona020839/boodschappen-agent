@@ -334,3 +334,25 @@ def test_chat_passes_the_visitors_stores_to_the_agent(api, monkeypatch):
     c = TestClient(api.app)
     r = c.post("/api/chat", json={"session_id": "abc123abc123", "message": "hoi", "stores": ["lidl", "ah", "nope"]})
     assert r.status_code == 200 and seen["stores"] == ["ah", "lidl"]
+
+
+def test_admin_import_size_limits(api, monkeypatch):
+    from grocery_agent import importer
+    from grocery_agent.importer import ImportResult
+    monkeypatch.setenv("ADMIN_CODE", "owner-123")
+    monkeypatch.setattr(importer, "import_promotions", lambda store, **kw: ImportResult(store=store))
+    monkeypatch.setattr(api, "MAX_UPLOAD_BYTES", 2 * 1024 * 1024)
+    monkeypatch.setattr(api, "MAX_IMPORT_BYTES", 3 * 1024 * 1024)
+    c = TestClient(api.app)
+    auth = {"Authorization": "Bearer " + c.post("/api/admin/login", json={"code": "owner-123"}).json()["token"]}
+    mb = b"x" * (1024 * 1024)
+
+    def post(*sizes):
+        files = [("files", (f"p{i}.pdf", mb * n, "application/pdf")) for i, n in enumerate(sizes)]
+        return c.post("/api/admin/import", headers=auth, data={"store": "ah"}, files=files)
+
+    assert post(2).status_code == 200
+    r = post(3)
+    assert r.status_code == 400 and "larger than 2 MB" in r.json()["detail"]
+    r = post(2, 2)
+    assert r.status_code == 400 and "Together" in r.json()["detail"]

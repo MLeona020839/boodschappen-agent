@@ -35,7 +35,9 @@ from grocery_agent.agent import PRICE, Agent, history_from_text
 log = logging.getLogger("api")
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 SESSION_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
-MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+# Claude takes 32 MB per request and base64 adds a third, so this is the most one import can send.
+MAX_IMPORT_BYTES = 22 * 1024 * 1024
 MAX_UPLOAD_FILES = 10
 
 
@@ -379,7 +381,7 @@ def admin_import(store: str = Form(...), valid_from: str | None = Form(None), va
     for f in files:
         data = f.file.read(MAX_UPLOAD_BYTES + 1)
         if len(data) > MAX_UPLOAD_BYTES:
-            raise HTTPException(400, f"{f.filename} is larger than 8 MB.")
+            raise HTTPException(400, f"{f.filename} is larger than {MAX_UPLOAD_BYTES // 1024 // 1024} MB.")
         blobs.append((f.filename or "upload", data))
     switched_from, source = None, None
     if url.strip():
@@ -402,6 +404,9 @@ def admin_import(store: str = Form(...), valid_from: str | None = Form(None), va
         source = page.source or url.strip()
     if not blobs and not text.strip():
         raise HTTPException(400, "Add screenshots, a web address or paste text.")
+    if sum(len(data) for _, data in blobs) > MAX_IMPORT_BYTES:
+        raise HTTPException(400, f"Together the files are larger than {MAX_IMPORT_BYTES // 1024 // 1024} MB. "
+                                 "Import them in smaller groups.")
 
     from grocery_agent.importer import import_promotions
     try:
