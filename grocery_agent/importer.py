@@ -15,7 +15,7 @@ MAX_CANDIDATES = 25
 @dataclass
 class ImportResult:
     saved: list[dict] = field(default_factory=list)      # promotion + matched products
-    unmatched: list[dict] = field(default_factory=list)  # read but no product found
+    unmatched: list[dict] = field(default_factory=list)  # saved without products: not in the price data
     store: str = ""                                      # store the promotions were saved under
     switched_from: str | None = None                     # chosen store, if the folder showed another
     input_tokens: int = 0
@@ -113,10 +113,12 @@ def import_promotions(store: str, *, files: list[tuple[str, bytes]] = (), text: 
     for p, ids in zip(extracted, matched):
         row = {"title": p.title, "promotion": p.label, "kind": p.kind,
                "valid_to": p.valid_to or valid_to}
+        # Kept even without products (12-packs, bakery, deli: often missing from the price data),
+        # so the agent can still mention the deal; it just can't price it.
+        promos.add(pcon, store, p, ids, valid_from, valid_to, source)
         if not ids:
             result.unmatched.append(row)
             continue
-        promos.add(pcon, store, p, ids, valid_from, valid_to, source)
         names = [r["name"] for r in db.get_products(con, ids).values()]
         result.saved.append({**row, "products": names})
     return result

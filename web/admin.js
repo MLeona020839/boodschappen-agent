@@ -206,8 +206,8 @@ document.addEventListener("DOMContentLoaded", () => {
       box.append(ul);
       if (res.unmatched.length) {
         const p = document.createElement("p");
-        p.className = "msg-err";
-        p.textContent = "No matching products found for: " + res.unmatched.map((r) => `${r.title} (${r.promotion})`).join("; ");
+        p.className = "muted";
+        p.textContent = "Saved without price data (the assistant can mention these deals, but can't price them): " + res.unmatched.map((r) => `${r.title} (${r.promotion})`).join("; ");
         box.append(p);
       }
       msg.textContent = "";

@@ -150,7 +150,9 @@ def list_promotions(store: Optional[str] = None, query: Optional[str] = None) ->
     """List this week's imported promotions (bonus / aanbiedingen) and the products they cover.
 
     Use it to plan meals around what is on sale. Only promotions the user has imported are
-    known; if the list is empty, say so and plan with regular prices.
+    known; if the list is empty, say so and plan with regular prices. Some deals have no
+    products (e.g. 12-packs or bakery items missing from the price data): mention them, but
+    they can't be priced.
 
     Args:
         store: Store code to filter on, e.g. "ah". Omit for all stores.
@@ -180,6 +182,8 @@ def list_promotions(store: Optional[str] = None, query: Optional[str] = None) ->
             "valid": f"{pr['valid_from'] or '?'} – {pr['valid_to'] or '?'}",
             "products": products[:10],
             **({"more_products": len(products) - 10} if len(products) > 10 else {}),
+            **({"note": "Not in the price data, so price_shopping_list can't apply it: mention the "
+                        "deal, but don't count it in totals."} if not products else {}),
         })
     if not out:
         return json.dumps({"promotions": [], "note": "No imported promotions match. The user can "

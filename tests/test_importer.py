@@ -82,3 +82,17 @@ def test_folder_from_another_store_is_imported_for_that_store():
     assert [r["store"] for r in saved] == ["dirk"]
     assert (saved[0]["valid_from"], saved[0]["valid_to"]) == tuple(d.isoformat() for d in promos.promo_week("dirk"))
     assert res.input_tokens == 200
+
+
+def test_deal_without_products_is_kept_for_the_agent():
+    import json
+    from grocery_agent import tools
+    p = promo("Hertog Jan 12-pack", "hertog jan")
+    client = ScriptedClient(ExtractedPromos(store_on_folder=None, promotions=[p]),
+                            PromoMatches(matches=[PromoMatch(index=0, product_ids=[])]))
+    res = importer.import_promotions("dekamarkt", text="Hertog Jan 12-pack 8.99", client=client)
+    assert res.saved == [] and [r["title"] for r in res.unmatched] == ["Hertog Jan 12-pack"]
+    saved = promos.list_all(promos.connect())
+    assert [(r["title"], r["n_products"]) for r in saved] == [("Hertog Jan 12-pack", 0)]
+    listed = json.loads(tools.list_promotions.func(store="dekamarkt"))["promotions"]
+    assert listed[0]["products"] == [] and "can't apply" in listed[0]["note"]
