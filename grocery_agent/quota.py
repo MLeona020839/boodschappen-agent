@@ -1,4 +1,5 @@
 """Spending caps on the server's API key: per day for all visitors together, and per visitor per day.
+The owner's promotion imports have their own daily budget, so they never use up the visitors'.
 
 Spend is recorded per day (Europe/Amsterdam, so it resets at local midnight) in the same database as
 the promotions, so it survives restarts on Streamlit Cloud. If that database is unreachable, spend is
@@ -35,8 +36,17 @@ session_spend = sa.Table(
     sa.Column("cost_usd", sa.Float, nullable=False),
 )
 
+# The owner's promotion imports, kept apart from the visitors' budget.
+import_spend = sa.Table(
+    "import_spend", metadata,
+    sa.Column("day", sa.String(10), primary_key=True),
+    sa.Column("cost_usd", sa.Float, nullable=False),
+    sa.Column("requests", sa.Integer, nullable=False),
+)
+
 _ready: set[int] = set()          # engines whose table exists
 _memory: dict[str, float] = {}    # fallback when the database is down: day -> usd
+_memory_imports: dict[str, float] = {}
 _memory_sessions: dict[tuple[str, str], float] = {}  # (day, session id) -> usd
 _lock = threading.Lock()
 
@@ -56,6 +66,11 @@ def daily_budget_eur() -> float | None:
     return float(value) if value else None
 
 
+def import_budget_eur() -> float:
+    """What the owner's imports may cost per day (default €10, about ten folders)."""
+    return settings.number("IMPORT_BUDGET_EUR", 10.0)
+
+
 def _engine():
     engine = promos.connect()
     if id(engine) not in _ready:
@@ -64,14 +79,47 @@ def _engine():
     return engine
 
 
-def spent_today_usd(day: str | None = None) -> float:
-    day = day or today()
+def _day_total(table: sa.Table, memory: dict[str, float], day: str) -> float:
     try:
         with _engine().connect() as con:
-            row = con.execute(sa.select(daily_spend.c.cost_usd).where(daily_spend.c.day == day)).first()
-        return (row[0] if row else 0.0) + _memory.get(day, 0.0)
+            row = con.execute(sa.select(table.c.cost_usd).where(table.c.day == day)).first()
+        return (row[0] if row else 0.0) + memory.get(day, 0.0)
     except (promos.Unavailable, sa.exc.SQLAlchemyError):
-        return _memory.get(day, 0.0)
+        return memory.get(day, 0.0)
+
+
+def _add_to_day(con, table: sa.Table, day: str, cost_usd: float) -> None:
+    updated = con.execute(sa.update(table).where(table.c.day == day).values(
+        cost_usd=table.c.cost_usd + cost_usd, requests=table.c.requests + 1)).rowcount
+    if not updated:
+        con.execute(sa.insert(table).values(day=day, cost_usd=cost_usd, requests=1))
+
+
+def spent_today_usd(day: str | None = None) -> float:
+    """What visitors spent today (imports not included)."""
+    return _day_total(daily_spend, _memory, day or today())
+
+
+def imports_spent_usd(day: str | None = None) -> float:
+    return _day_total(import_spend, _memory_imports, day or today())
+
+
+def record_import(cost_usd: float, day: str | None = None) -> None:
+    """Add the cost of one promotion import to today's import total."""
+    if cost_usd <= 0:
+        return
+    day = day or today()
+    try:
+        with _engine().begin() as con:
+            _add_to_day(con, import_spend, day, cost_usd)
+    except (promos.Unavailable, sa.exc.SQLAlchemyError):
+        with _lock:
+            _memory_imports[day] = _memory_imports.get(day, 0.0) + cost_usd
+
+
+def import_remaining_eur() -> float:
+    """Euros left in today's import budget."""
+    return max(0.0, import_budget_eur() - imports_spent_usd() * usd_to_eur())
 
 
 def record(cost_usd: float, day: str | None = None, session_id: str | None = None) -> None:
@@ -81,13 +129,7 @@ def record(cost_usd: float, day: str | None = None, session_id: str | None = Non
     day = day or today()
     try:
         with _engine().begin() as con:
-            updated = con.execute(
-                sa.update(daily_spend).where(daily_spend.c.day == day).values(
-                    cost_usd=daily_spend.c.cost_usd + cost_usd,
-                    requests=daily_spend.c.requests + 1)
-            ).rowcount
-            if not updated:
-                con.execute(sa.insert(daily_spend).values(day=day, cost_usd=cost_usd, requests=1))
+            _add_to_day(con, daily_spend, day, cost_usd)
             if session_id:
                 where = sa.and_(session_spend.c.day == day, session_spend.c.session_id == session_id)
                 updated = con.execute(sa.update(session_spend).where(where).values(

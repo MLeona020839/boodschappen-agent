@@ -277,7 +277,7 @@ with panel:
                         cost = (res.input_tokens * PRICE["input"] + res.output_tokens * PRICE["output"]) / 1_000_000
                         ss.import_cost += cost
                         if on_server_key:
-                            quota.record(cost)
+                            quota.record_import(cost)
                         ss.upload_round = upload_round + 1  # clear the inputs; on failure they stay for a retry
                     except anthropic.AuthenticationError:
                         st.error(t("import_bad_key") if key_mode == "own" else t("shared_key_rejected"))

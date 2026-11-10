@@ -210,7 +210,7 @@ def test_admin_login_and_protected_endpoints(api, monkeypatch):
     assert c.get("/api/admin/promotions", headers={"Authorization": "Bearer 9999999999.forged"}).status_code == 401
     token = c.post("/api/admin/login", json={"code": "owner-123"}).json()["token"]
     auth = {"Authorization": f"Bearer {token}"}
-    assert c.get("/api/admin/promotions", headers=auth).json() == {"promotions": []}
+    assert c.get("/api/admin/promotions", headers=auth).json()["promotions"] == []
     assert c.post("/api/admin/cleanup", headers=auth).json() == {"removed": 0}
 
 
@@ -221,7 +221,7 @@ def test_expired_admin_token_is_rejected(api, monkeypatch):
     assert r.status_code == 401
 
 
-def test_admin_import_counts_against_the_budget(api, monkeypatch):
+def test_admin_import_counts_against_the_import_budget(api, monkeypatch):
     from grocery_agent import importer
     from grocery_agent.importer import ImportResult
     monkeypatch.setenv("ADMIN_CODE", "owner-123")
@@ -244,7 +244,8 @@ def test_admin_import_counts_against_the_budget(api, monkeypatch):
     assert r.status_code == 200
     assert r.json()["switched_from"] == "ah" and r.json()["saved"][0]["title"] == "Grillworst"
     assert calls["store"] == "ah" and calls["files"] == [("folder.png", b"\x89PNG fake")]
-    assert quota.spent_today_usd() == pytest.approx((10_000 * 4 + 1_000 * 20) / 1e6)
+    assert quota.imports_spent_usd() == pytest.approx((10_000 * 4 + 1_000 * 20) / 1e6)
+    assert quota.spent_today_usd() == 0   # the visitors' budget is untouched
 
 
 def test_admin_delete(api, monkeypatch):
@@ -356,3 +357,23 @@ def test_admin_import_size_limits(api, monkeypatch):
     assert r.status_code == 400 and "larger than 2 MB" in r.json()["detail"]
     r = post(2, 2)
     assert r.status_code == 400 and "Together" in r.json()["detail"]
+
+
+def test_admin_import_uses_its_own_budget(api, monkeypatch):
+    from grocery_agent import importer, quota
+    from grocery_agent.importer import ImportResult
+    monkeypatch.setenv("ADMIN_CODE", "owner-123")
+    recorded = {"visitors": 0.0, "imports": 0.0}
+    monkeypatch.setattr(quota, "record", lambda cost, **kw: recorded.__setitem__("visitors", recorded["visitors"] + cost))
+    monkeypatch.setattr(quota, "record_import", lambda cost, **kw: recorded.__setitem__("imports", recorded["imports"] + cost))
+    monkeypatch.setattr(importer, "import_promotions",
+                        lambda store, **kw: ImportResult(store=store, input_tokens=100_000, output_tokens=10_000))
+    c = TestClient(api.app)
+    auth = {"Authorization": "Bearer " + c.post("/api/admin/login", json={"code": "owner-123"}).json()["token"]}
+    r = c.post("/api/admin/import", headers=auth, data={"store": "ah", "text": "Kipfilet 2+1 gratis"})
+    assert r.status_code == 200 and "import_budget" in r.json()
+    assert recorded == {"visitors": 0.0, "imports": pytest.approx(0.6)}
+
+    monkeypatch.setattr(quota, "import_remaining_eur", lambda: 0.0)
+    r = c.post("/api/admin/import", headers=auth, data={"store": "ah", "text": "Kipfilet 2+1 gratis"})
+    assert r.status_code == 429 and "import budget" in r.json()["detail"]

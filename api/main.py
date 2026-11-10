@@ -345,10 +345,15 @@ def admin_login(body: LoginIn, request: Request):
     return {"token": make_token()}
 
 
+def import_budget() -> dict:
+    return {"left": round(quota.import_remaining_eur(), 2), "total": quota.import_budget_eur()}
+
+
 @app.get("/api/admin/promotions", dependencies=[Depends(require_admin)])
 def admin_promotions():
     try:
-        return {"promotions": [_promo_json(p) for p in promos.list_all(promos.connect())]}
+        return {"promotions": [_promo_json(p) for p in promos.list_all(promos.connect())],
+                "import_budget": import_budget()}
     except (promos.Unavailable, sa.exc.SQLAlchemyError):
         raise HTTPException(503, "The promotions database is unavailable.")
 
@@ -404,6 +409,9 @@ def admin_import(store: str = Form(...), valid_from: str | None = Form(None), va
         source = page.source or url.strip()
     if not blobs and not text.strip():
         raise HTTPException(400, "Add screenshots, a web address or paste text.")
+    if quota.import_remaining_eur() <= 0:
+        raise HTTPException(429, f"Today's import budget of €{quota.import_budget_eur():.2f} is used up. "
+                                 "It resets at midnight (Amsterdam time).")
     if sum(len(data) for _, data in blobs) > MAX_IMPORT_BYTES:
         raise HTTPException(400, f"Together the files are larger than {MAX_IMPORT_BYTES // 1024 // 1024} MB. "
                                  "Import them in smaller groups.")
@@ -414,9 +422,10 @@ def admin_import(store: str = Form(...), valid_from: str | None = Form(None), va
                                 client=client(), source=source)
     except anthropic.APIError as e:
         raise HTTPException(502, f"Claude request failed: {e.__class__.__name__}")
-    quota.record((res.input_tokens * PRICE["input"] + res.output_tokens * PRICE["output"]) / 1_000_000)
+    # The owner's imports have their own budget and don't count against the visitors' one.
+    quota.record_import((res.input_tokens * PRICE["input"] + res.output_tokens * PRICE["output"]) / 1_000_000)
     return {"store": res.store, "switched_from": res.switched_from or switched_from,
-            "saved": res.saved, "unmatched": res.unmatched}
+            "saved": res.saved, "unmatched": res.unmatched, "import_budget": import_budget()}
 
 
 # ---------------------------------------------------------------- static site (last, so /api wins)

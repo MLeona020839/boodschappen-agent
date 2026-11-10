@@ -42,7 +42,8 @@ async function loadStores() {
 }
 
 async function loadRows() {
-  const { promotions } = await api(`${API}api/admin/promotions`);
+  const { promotions, import_budget } = await api(`${API}api/admin/promotions`);
+  showImportBudget(import_budget);
   const body = $("#rows");
   body.replaceChildren();
   const today = new Date().toISOString().slice(0, 10);
@@ -106,6 +107,12 @@ function renderFiles() {
   $("#drop").textContent = chosen.length
     ? `${chosen.length} file${chosen.length > 1 ? "s" : ""} added. Drop, pick or paste (⌘V) more.`
     : "Drop folder screenshots, photos or a PDF here, click to choose, or paste a screenshot (⌘V)";
+}
+
+// The imports' own daily budget; the visitors' free budget is separate.
+function showImportBudget(b) {
+  if (!b) return;
+  $("#import-budget").textContent = `Import budget today: €${b.left.toFixed(2)} of €${b.total.toFixed(2)} left (separate from the visitors' budget; resets at midnight).`;
 }
 
 function showMsg(text, isError) {

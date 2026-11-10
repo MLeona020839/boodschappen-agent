@@ -166,6 +166,7 @@ wakes in seconds; the static page is always instant. Step by step: [`deploy/CLOU
 | `SESSION_BUDGET_EUR` | Spend cap per browser session, so one visitor can't use up the day (default €1) |
 | `USD_TO_EUR` | Exchange rate for the budgets, since Anthropic bills in USD (default 0.92) |
 | `ADMIN_CODE` | Unlocks importing and deleting promotions for the owner |
+| `IMPORT_BUDGET_EUR` | Daily budget for the owner's promotion imports, separate from the visitors' (default €10) |
 | `ACCESS_CODE` | Optional: require a code before anyone can use the shared key |
 | `PROMOS_DATABASE_URL` | SQLAlchemy / Postgres URL for promotions and the daily spend (default: local SQLite) |
 

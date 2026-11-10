@@ -7,6 +7,8 @@ Settings
                           (resets at midnight Amsterdam time). No cap when unset.
     SESSION_BUDGET_EUR    Max spend per browser session on the server key (default 1.00).
     USD_TO_EUR            Exchange rate for the budgets; Anthropic bills in USD (default 0.92).
+    IMPORT_BUDGET_EUR     Daily budget for the owner's promotion imports, separate from the
+                          visitors' DAILY_BUDGET_EUR (default 10.00).
     ADMIN_CODE            On a shared deployment, only this code unlocks importing/deleting promotions.
     TRUST_PROXY           "1" behind Caddy or Cloud Run: take the visitor IP from X-Forwarded-For.
     CORS_ORIGINS          Origins allowed to call the API, e.g. "https://mleona020839.github.io".
