@@ -6,9 +6,9 @@ cheapest across 10 Dutch supermarkets (AH, Jumbo, Lidl, Plus, Dirk and more, abo
 > *"Two people, four dinners this week, €35 budget, something Asian, no coriander."*
 > → a meal plan, a shopping list grouped by store, the total, and whether a second store is worth the trip.
 
-**Live demo: [boodschappen-agent-ming.streamlit.app](https://boodschappen-agent-ming.streamlit.app/)** (bring your own Anthropic API key) · [中文说明](README.zh.md)
+**Live demo: [mleona020839.github.io/boodschappen-agent](https://mleona020839.github.io/boodschappen-agent/)** (free to try, no API key needed) · [中文说明](README.zh.md)
 
-![Planning four dinners for two around this week's AH promotions](docs/screenshot.webp)
+![The web app: ask the agent on the left, compare one product across supermarkets on the right](docs/screenshot.webp)
 
 ## What it does
 
@@ -16,13 +16,19 @@ cheapest across 10 Dutch supermarkets (AH, Jumbo, Lidl, Plus, Dirk and more, abo
   Dutch; the agent searches in Dutch on your behalf.
 - **Exact basket pricing**: the cheapest mix of pack sizes per store (800 g + 175 g beats
   2 × 800 g), the best single store, and the best two-store split with the savings.
-- **Weekly promotions**: drop in a folder screenshot, photo or PDF, or paste the text of a bonus page.
+- **Weekly promotions**: give the address of a store's folder on allefolders.nl, drop in folder
+  screenshots, photos or a PDF, or paste the text of a bonus page.
   Claude reads the deals, matches them to products, and pricing then applies
   1+1 gratis, "2 voor €5", 25% korting, 2e halve prijs and plain price cuts.
+- **Price comparison without the agent**: search one product and see the closest match at every
+  store, cheapest per kg / L / piece first (shareable as a link, e.g. `?q=kipfilet`).
+- **Your supermarkets only**: pick the stores you shop at, or enter a postcode to select the ones
+  nearby (PDOK address lookup in the browser + OpenStreetMap branch locations); the comparison
+  and the agent then stick to those. Each store badge links to its own deals page.
 - **Remembers preferences**: household size, dislikes, favourite stores.
-- **Free to try, with a hard cost ceiling**: open to everyone on the owner's key within a shared daily budget (e.g. €3, resetting at midnight Amsterdam time) and a per-session cap, tracked in Postgres; only the owner can import or delete promotions.
+- **Free to try, with a hard cost ceiling**: open to everyone on the owner's key within a shared daily budget (e.g. €3, resetting at midnight Amsterdam time) and a per-session cap, tracked in Postgres; only the owner can import or delete promotions, on a separate import budget.
 - **English, Dutch or Chinese UI** (switch top right, or link to `?lang=Nederlands` / `?lang=中文`); the agent replies in whatever language you write.
-- **Chat on the left, tools on the right**: drop screenshots from the bottom-right corner of your screen straight onto the promotion upload box.
+- **Also as an MCP server**: the same tools in Claude Code, Claude Desktop or any MCP client (see below).
 
 ## How it works
 

@@ -615,4 +615,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   try { T = await (await fetch(`${API}api/i18n`)).json(); } catch { T = null; }
   setLanguage(lang);
   loadState();
+  // ?q=kipfilet opens the page with that price comparison, so a search can be shared as a link.
+  const q = new URLSearchParams(location.search).get("q");
+  if (q) { $("#compare-input").value = q; runCompare(q); }
 });

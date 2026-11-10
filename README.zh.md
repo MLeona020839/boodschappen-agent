@@ -1,8 +1,8 @@
 # 荷兰超市比价 + 菜谱 Agent
 
-[English](README.md) · **在线体验：[boodschappen-agent-ming.streamlit.app](https://boodschappen-agent-ming.streamlit.app/?lang=中文)**
+[English](README.md) · **在线体验：[mleona020839.github.io/boodschappen-agent](https://mleona020839.github.io/boodschappen-agent/?lang=zh)**（免费使用，不需要 API key）
 
-![按本周 AH 折扣为两人规划四顿晚饭](docs/screenshot.webp)
+![网页版：左边问 AI，右边比较同一商品在各家超市的价格](docs/screenshot.zh.webp)
 
 用自然语言规划一周饭菜，agent 会去 10 家荷兰超市查价，告诉你在哪里买最便宜。
 
