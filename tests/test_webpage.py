@@ -90,8 +90,10 @@ FOLDER = "https://www.allefolders.nl/albert-heijn-aanbiedingen/012d0fb4-c013-4d0
 
 
 def _pages(n):
-    return "".join(f'<img src="https://cdn.jafolders.com/pages/{i:08d}-0000-0000-0000-000000000000/large.webp">' * 2
-                   for i in range(n))
+    # the viewer's markup: each page twice (spread and single view), as small images
+    one = "".join(f'<div class="page" data-v-1><img data-nuxt-img srcset="https://cdn.jafolders.com/pages/'
+                  f'{i:08d}-0000-0000-0000-000000000000/small.webp?v=1 0w" class="base-image"></div>' for i in range(n))
+    return '<div class="page" data-v-1><!----></div>' + one + one
 
 
 def _brochure(fid, start, end, slug="albert-heijn"):

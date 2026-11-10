@@ -38,7 +38,9 @@ FOLDER_CDN = "cdn.jafolders.com"
 FOLDER_SLUGS = {"albert-heijn": "ah"}   # every other store's slug is its code
 # /albert-heijn-aanbiedingen/<folder id>/0 (a folder) or /albert-heijn/folder-aanbiedingen (the store)
 _FOLDER_PATH = re.compile(r"^/([a-z0-9-]+?)(?:-aanbiedingen/[0-9a-f-]{36}(?:/\d+)?|/folder-aanbiedingen)/?$")
-_FOLDER_IMAGE = re.compile(r"https://cdn\.jafolders\.com/pages/[0-9a-f-]{36}/large\.webp")
+# A folder page in the viewer: <div class="page"><img … src="https://cdn.jafolders.com/pages/<id>/small.webp">.
+# The same page is served full size at …/large.webp, which is what gets read.
+_FOLDER_PAGE = re.compile(r'<div class="page"[^>]*>\s*<img[^>]*?https://cdn\.jafolders\.com/pages/([0-9a-f-]{36})/')
 
 
 class PageError(ValueError):
@@ -169,7 +171,8 @@ def folders_in(raw: str) -> list[Folder]:
 
 
 def _images(raw: str) -> list[str]:
-    return list(dict.fromkeys(_FOLDER_IMAGE.findall(raw)))   # page order, no repeats
+    """Full-size image URLs of the folder's pages, in page order (the viewer lists them twice)."""
+    return [f"https://{FOLDER_CDN}/pages/{page}/large.webp" for page in dict.fromkeys(_FOLDER_PAGE.findall(raw))]
 
 
 def weekly_folder(raw: str, slug: str, get, today: date | None = None) -> tuple[Folder, str]:
