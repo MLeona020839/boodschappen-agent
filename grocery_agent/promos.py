@@ -61,14 +61,20 @@ promotion_products = sa.Table(
 
 # ---------------------------------------------------------------- promotion weeks
 
-# Weekday each store's promotion week starts on (Monday = 0). AH bonus weeks run Monday to
-# Sunday; Jumbo and Dirk folders run Wednesday to Tuesday. Unlisted stores default to Monday.
-WEEK_START = {"jumbo": 2, "dirk": 2}
+# Weekday each store's promotion week starts on (Monday = 0), from the folders' printed dates:
+# AH and Lidl Monday to Sunday (the default), Jumbo, Dirk, PLUS and Hoogvliet Wednesday to
+# Tuesday, DekaMarkt Tuesday to Monday, Vomar and Poiesz Sunday to Saturday.
+WEEK_START = {"jumbo": 2, "dirk": 2, "plus": 2, "hoogvliet": 2, "dekamarkt": 1, "vomar": 6, "poiesz": 6}
+# SPAR folders run two weeks, Thursday to Wednesday; the date is the first day of one of them.
+TWO_WEEKS_FROM = {"spar": date(2026, 10, 22)}
 
 
 def promo_week(store: str, today: date | None = None) -> tuple[date, date]:
     """The store's promotion week that contains `today`, as (first day, last day)."""
     today = today or date.today()
+    if store in TWO_WEEKS_FROM:
+        start = today - timedelta(days=(today - TWO_WEEKS_FROM[store]).days % 14)
+        return start, start + timedelta(days=13)
     start = today - timedelta(days=(today.weekday() - WEEK_START.get(store, 0)) % 7)
     return start, start + timedelta(days=6)
 

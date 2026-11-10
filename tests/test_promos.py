@@ -70,13 +70,23 @@ def test_promo_week_per_store():
     # AH (and default): Monday to Sunday
     assert promos.promo_week("ah", wed) == (date(2026, 10, 19), date(2026, 10, 25))
     assert promos.promo_week("ah", sun) == (date(2026, 10, 19), date(2026, 10, 25))
-    assert promos.promo_week("plus", wed) == (date(2026, 10, 19), date(2026, 10, 25))
+    assert promos.promo_week("lidl", wed) == (date(2026, 10, 19), date(2026, 10, 25))
     # Jumbo: Wednesday to Tuesday
     assert promos.promo_week("jumbo", wed) == (date(2026, 10, 21), date(2026, 10, 27))
     assert promos.promo_week("jumbo", tue) == (date(2026, 10, 21), date(2026, 10, 27))
     assert promos.promo_week("jumbo", date(2026, 10, 20)) == (date(2026, 10, 14), date(2026, 10, 20))
     # Dirk: Wednesday to Tuesday as well (folder week 43: 21 to 27 October 2026)
     assert promos.promo_week("dirk", wed) == (date(2026, 10, 21), date(2026, 10, 27))
+    # The others, checked against their folders of week 46 (2026)
+    today = date(2026, 11, 10)   # a Tuesday
+    assert promos.promo_week("plus", today) == (date(2026, 11, 4), date(2026, 11, 10))
+    assert promos.promo_week("hoogvliet", date(2026, 11, 11)) == (date(2026, 11, 11), date(2026, 11, 17))
+    assert promos.promo_week("dekamarkt", today) == (date(2026, 11, 10), date(2026, 11, 16))
+    assert promos.promo_week("vomar", today) == (date(2026, 11, 8), date(2026, 11, 14))
+    assert promos.promo_week("poiesz", today) == (date(2026, 11, 8), date(2026, 11, 14))
+    # SPAR: two weeks, Thursday to Wednesday
+    assert promos.promo_week("spar", today) == (date(2026, 11, 5), date(2026, 11, 18))
+    assert promos.promo_week("spar", date(2026, 11, 19)) == (date(2026, 11, 19), date(2026, 12, 2))
 
 
 def test_reimporting_the_same_promotion_replaces_it(tmp_path):
