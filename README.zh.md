@@ -84,6 +84,22 @@ app.py：Streamlit 界面（对话、查询过程、折扣导入、偏好管理�
    - `PROMOS_DATABASE_URL`：填 Supabase 等 Postgres 地址，让折扣和每天的花费记录在重启后保留。
    - 另外建议在 Anthropic 控制台设置每月花费上限，作为最后一道保险。
 
+## MCP server
+
+agent 用的工具也可以作为 [MCP](https://modelcontextprotocol.io) server 运行，Claude Code、Claude Desktop
+等 MCP 客户端可以直接用自己的模型查价格，不需要 Anthropic API key，也不需要网页。
+
+工具：`search_products`（按荷兰语商品名搜索）、`price_shopping_list`（购物清单精确计价，给出最便宜的一家店和两店组合）、
+`compare_prices`（一个商品在各家超市的单价比较）、`list_promotions`（本周已导入的折扣）、`list_stores`（10 家超市和价格日期）。
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements-mcp.txt
+claude mcp add boodschappen -e PYTHONPATH=/path/to/grocery-agent -- /path/to/grocery-agent/.venv/bin/python -m grocery_agent.mcp_server
+```
+
+Claude Desktop 的配置写法见英文 README。第一次启动会下载当天价格（约 10 秒），之后每天自动更新一次。
+在 `env` 里设置 `PROMOS_DATABASE_URL` 可以共用网页版导入的折扣；加 `--http` 参数则改用 HTTP（`127.0.0.1:8000/mcp`）。
+
 ## 测试
 
 ```bash

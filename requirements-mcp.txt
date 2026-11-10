@@ -1,0 +1,6 @@
+# MCP server (python -m grocery_agent.mcp_server): the tools only, no web app or Anthropic key needed
+anthropic>=1.15
+pydantic>=2
+sqlalchemy>=2
+psycopg[binary]>=3
+mcp>=2.3,<3

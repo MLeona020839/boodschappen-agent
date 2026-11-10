@@ -99,6 +99,48 @@ export ANTHROPIC_API_KEY=sk-ant-...
 .venv/bin/pytest -q
 ```
 
+## MCP server
+
+The agent's tools also run as an [MCP](https://modelcontextprotocol.io) server, so any MCP client
+(Claude Code, Claude Desktop, …) can use the price data with its own model. No Anthropic key or web
+app is needed.
+
+| Tool | What it does |
+|---|---|
+| `search_products` | Search products by Dutch name, per store, with pack size, price and unit price |
+| `price_shopping_list` | Exact cost of a shopping list: cheapest store, best two-store split, every store's total |
+| `compare_prices` | One product across stores, cheapest per kg / L / piece first |
+| `list_promotions` | This week's imported promotions and the products they cover |
+| `list_stores` | The 10 supermarkets, their codes and the price date |
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements-mcp.txt
+```
+
+Claude Code (use the absolute path of your checkout):
+
+```bash
+claude mcp add boodschappen -e PYTHONPATH=/path/to/grocery-agent -- /path/to/grocery-agent/.venv/bin/python -m grocery_agent.mcp_server
+```
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "boodschappen": {
+      "command": "/path/to/grocery-agent/.venv/bin/python",
+      "args": ["-m", "grocery_agent.mcp_server"],
+      "env": { "PYTHONPATH": "/path/to/grocery-agent" }
+    }
+  }
+}
+```
+
+The first start downloads today's prices (about 10 seconds); after that they refresh once a day.
+Set `PROMOS_DATABASE_URL` in `env` to use the same imported promotions as the web app. Add
+`--http` to serve streamable HTTP on `127.0.0.1:8000/mcp` instead of stdio.
+
 ## Deploy
 
 **Web app on Cloud Run + GitHub Pages (recommended for low traffic):** the API scales to zero and

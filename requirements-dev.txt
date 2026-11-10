@@ -1,2 +1,3 @@
 pytest
 pgserver  # optional: lets the Postgres tests run
+mcp>=2.3,<3  # tests/test_mcp_server.py
