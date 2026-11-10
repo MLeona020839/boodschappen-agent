@@ -149,6 +149,7 @@ def budget_state(session_id: str | None) -> dict:
         "day_total": quota.daily_budget_eur(),
         "session_spent": round(spent, 4),
         "session_total": session_budget_eur(),
+        "resets_at": quota.next_reset().isoformat(),   # midnight in Amsterdam; the page counts down
     }
 
 

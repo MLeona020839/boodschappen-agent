@@ -440,15 +440,56 @@ function compareRow(s, cheapest, unit) {
 
 function renderBudget(b) {
   const el = $("#budget");
-  if (!b || b.day_total === null || b.day_total === undefined) { el.hidden = true; }
+  if (!b || b.day_total === null || b.day_total === undefined) { el.hidden = true; $("#usage").hidden = true; }
   else {
     el.hidden = false;
     el.textContent = t("web_free_today", { left: b.day_left, total: b.day_total });
     el.className = "budget" + (b.day_left <= 0 ? " empty" : b.day_left < b.day_total * 0.2 ? " low" : "");
+    meter("day", b.day_total - b.day_left, b.day_total);
+    meter("you", b.session_spent, b.session_total);
   }
-  if (b && b.day_left !== null && b.day_left <= 0) showNotice(t("day_exhausted", { total: b.day_total }));
-  else if (b && b.session_spent >= b.session_total) showNotice(t("session_exhausted", { session: b.session_total }));
+  resetsAt = b && b.resets_at ? Date.parse(b.resets_at) : null;
+  tick();
   setBusy(busy);
+}
+
+function meter(which, used, total) {
+  used = Math.min(Math.max(used, 0), total);
+  $(`#usage-${which}`).textContent = t("web_usage_amount", { used, total });
+  const bar = $(`#usage-${which}-bar`);
+  const share = total > 0 ? used / total : 1;
+  bar.style.width = `${Math.round(share * 100)}%`;
+  bar.className = share >= 1 ? "empty" : share > 0.8 ? "low" : "";
+}
+
+// ---------------------------------------------------------------- reset countdown
+
+let resetsAt = null;   // ms timestamp of the next midnight in Amsterdam (from the server)
+
+function duration(ms) {
+  const minutes = Math.max(1, Math.ceil(ms / 60000));
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  return h ? t("web_time_hm", { h, m }) : t("web_time_m", { m });
+}
+
+// Runs every 30 s: keeps the countdown current and unblocks the page once the budget resets.
+function tick() {
+  if (!state || !state.budget) return;
+  const left = resetsAt ? resetsAt - Date.now() : null;
+  if (left !== null && left <= 0) { resetsAt = null; showNotice(""); loadState(); return; }
+  const time = left === null ? null : duration(left);
+  $("#usage-reset").textContent = time ? t("web_usage_resets", { time }) : "";
+  const back = time ? (lang === "zh" ? "" : " ") + t("web_back_in", { time }) : "";   // no space between Chinese sentences
+  const b = state.budget;
+  if (b.day_left !== null && b.day_left <= 0) showNotice(t("day_exhausted", { total: b.day_total }) + back);
+  else if (b.session_spent >= b.session_total) showNotice(t("session_exhausted", { session: b.session_total }) + back);
+}
+
+function toggleUsage(open) {
+  const panel = $("#usage");
+  open = open ?? panel.hidden;
+  panel.hidden = !open;
+  $("#budget").setAttribute("aria-expanded", String(open));
 }
 
 function renderPrefs() {
@@ -605,6 +646,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (v && !prefs.includes(v)) { prefs.push(v); store.set("ba.prefs", prefs); renderPrefs(); }
     $("#pref-input").value = "";
   });
+  $("#budget").addEventListener("click", (e) => { e.stopPropagation(); toggleUsage(); });
+  document.addEventListener("click", (e) => { if (!$("#usage").hidden && !e.target.closest(".usage-wrap")) toggleUsage(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#usage").hidden) { toggleUsage(false); $("#budget").focus(); } });
+  setInterval(tick, 30000);
   $("#compare-form").addEventListener("submit", (e) => { e.preventDefault(); runCompare($("#compare-input").value); });
   $("#stores-all").addEventListener("click", () => { setMyStores(allCodes()); $("#near-results").replaceChildren(); });
   $("#near-form").addEventListener("submit", (e) => {

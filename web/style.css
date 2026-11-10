@@ -51,6 +51,25 @@ h1 { font-size: clamp(1.5rem, 2.6vw, 2.2rem); letter-spacing: -.02em; }
 }
 .budget.low { background: var(--orange-soft); color: #a24e12; }
 .budget.empty { background: var(--red-soft); color: #9b1c1c; }
+button.budget { border: 0; cursor: pointer; font: inherit; font-size: .9rem; font-weight: 600; }
+button.budget::after { content: " ▾"; font-size: .75em; }
+button.budget[aria-expanded="true"]::after { content: " ▴"; }
+
+.usage-wrap { position: relative; }
+.usage {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; width: min(320px, calc(100vw - 32px));
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px 18px;
+}
+.usage h3 { font-size: 1rem; margin-bottom: 12px; }
+.meter-row { display: flex; justify-content: space-between; gap: 10px; font-size: .88rem; }
+.meter-row span:last-child { font-weight: 600; white-space: nowrap; }
+.meter { height: 8px; border-radius: 999px; background: var(--surface-2); margin: 6px 0 14px; overflow: hidden; }
+.meter span { display: block; height: 100%; width: 0; border-radius: 999px; background: var(--green); transition: width .3s; }
+.meter span.low { background: var(--orange); }
+.meter span.empty { background: #c43c3c; }
+#usage-reset { margin: 0 0 8px; }
+@media (max-width: 860px) { .usage { right: auto; left: 0; } }
 
 /* ---------------------------------------------------------------- store badges */
 

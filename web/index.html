@@ -29,7 +29,18 @@
         <button type="button" data-lang="nl">Nederlands</button>
         <button type="button" data-lang="zh">中文</button>
       </div>
-      <div id="budget" class="budget" hidden></div>
+      <div class="usage-wrap">
+        <button id="budget" class="budget" type="button" aria-expanded="false" aria-controls="usage" hidden></button>
+        <div id="usage" class="usage" role="dialog" aria-labelledby="usage-title" hidden>
+          <h3 id="usage-title" data-t="web_usage_title">Usage today</h3>
+          <div class="meter-row"><span data-t="web_usage_everyone"></span><span id="usage-day"></span></div>
+          <div class="meter"><span id="usage-day-bar"></span></div>
+          <div class="meter-row"><span data-t="web_usage_you"></span><span id="usage-you"></span></div>
+          <div class="meter"><span id="usage-you-bar"></span></div>
+          <p id="usage-reset" class="small"></p>
+          <p class="muted small" data-t="web_usage_note"></p>
+        </div>
+      </div>
     </div>
   </header>
 

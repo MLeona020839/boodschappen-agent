@@ -79,3 +79,13 @@ def test_imports_have_their_own_budget(monkeypatch):
     assert quota.import_remaining_eur() == 0
     quota.record(0.25)
     assert quota.imports_spent_usd() == pytest.approx(1.50)      # and visitors don't use the imports'
+
+
+def test_next_reset_is_midnight_in_amsterdam():
+    from zoneinfo import ZoneInfo
+    utc = ZoneInfo("UTC")
+    # 22:30 UTC on 10 Nov is already 23:30 in Amsterdam: reset at 11 Nov 00:00 local = 23:00 UTC
+    reset = quota.next_reset(datetime(2026, 11, 10, 22, 30, tzinfo=utc))
+    assert reset.isoformat() == "2026-11-11T00:00:00+01:00"
+    # 23:30 UTC is already the 11th in Amsterdam: the next reset is the 12th
+    assert quota.next_reset(datetime(2026, 11, 10, 23, 30, tzinfo=utc)).date().isoformat() == "2026-11-12"

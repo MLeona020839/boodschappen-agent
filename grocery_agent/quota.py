@@ -11,7 +11,7 @@ cost of the requests already running (a few tens of cents each).
 from __future__ import annotations
 
 import threading
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
@@ -53,6 +53,12 @@ _lock = threading.Lock()
 
 def today() -> str:
     return datetime.now(TZ).date().isoformat()
+
+
+def next_reset(now: datetime | None = None) -> datetime:
+    """When the daily budgets start over: the next midnight in Amsterdam."""
+    now = (now or datetime.now(TZ)).astimezone(TZ)
+    return datetime.combine(now.date() + timedelta(days=1), time(0), TZ)
 
 
 def usd_to_eur() -> float:
