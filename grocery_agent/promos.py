@@ -180,6 +180,9 @@ def safely(fn, *args, default, **kwargs):
         return default
 
 
+MAX_TITLE, MAX_LABEL = 160, 60
+
+
 def add(engine: sa.Engine, store: str, extracted: "ExtractedPromo", product_ids: list[int],
         valid_from: str | None, valid_to: str | None, source: str) -> int:
     vf, vt = extracted.valid_from or valid_from, extracted.valid_to or valid_to
@@ -195,7 +198,8 @@ def add(engine: sa.Engine, store: str, extracted: "ExtractedPromo", product_ids:
             overlap.append(sa.or_(c.valid_to.is_(None), c.valid_to >= vf))
         _delete_where(con, sa.and_(*overlap))
         pid = con.execute(sa.insert(promotions).values(
-            store=store, title=extracted.title, label=extracted.label, kind=extracted.kind,
+            # Folder text ends up in the chat agent's context: keep it to what a deal needs.
+            store=store, title=extracted.title[:MAX_TITLE], label=extracted.label[:MAX_LABEL], kind=extracted.kind,
             percent=extracted.percent, price=extracted.price, buy=extracted.buy, pay=extracted.pay,
             valid_from=vf, valid_to=vt,
             source=source, created_at=date.today().isoformat(),

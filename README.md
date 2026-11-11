@@ -176,6 +176,11 @@ wakes in seconds; the static page is always instant. Step by step: [`deploy/CLOU
 | `ACCESS_CODE` | Optional: require a code before anyone can use the shared key |
 | `PROMOS_DATABASE_URL` | SQLAlchemy / Postgres URL for promotions and the daily spend (default: local SQLite) |
 
+## Security
+
+Reviewed against the OWASP Top 10 for LLM Applications (November 2026): findings, fixes and accepted
+risks are in [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md).
+
 ## Limitations and next steps
 
 - Promotions are imported by hand (screenshot or paste). Fetching them automatically would

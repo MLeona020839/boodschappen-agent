@@ -61,6 +61,9 @@ _prices_ready = threading.Event()
 # The server keeps no conversations: each request carries the visible chat, so a restart or
 # Cloud Run scaling to zero loses nothing. Only "one question at a time per visitor" is in memory.
 _active: set[str] = set()
+# Agent runs at once on this instance. The budget is checked when a question starts and charged
+# when it ends, so parallel runs can overshoot the daily cap by what they cost; this bounds it.
+MAX_CONCURRENT_CHATS = int(settings.number("MAX_CONCURRENT_CHATS", 3))
 _active_lock = threading.Lock()
 
 
@@ -125,14 +128,19 @@ class RateLimiter:
 
 chat_limiter = RateLimiter([(5, 60), (30, 3600)])
 admin_limiter = RateLimiter([(10, 600)])
+admin_global_limiter = RateLimiter([(30, 3600)])   # all addresses together: brute force stays hopeless
 search_limiter = RateLimiter([(60, 60), (600, 3600)])
 
 
 def client_ip(request: Request) -> str:
+    """The visitor's IP, for rate limits. Behind Cloud Run or Caddy (TRUST_PROXY) it is the
+    last X-Forwarded-For entry: the proxy appends the address it saw there, while everything
+    before it is whatever the client chose to send, so using the first entry let anyone pick a
+    fresh rate-limit bucket per request."""
     if settings.flag("TRUST_PROXY"):
-        forwarded = request.headers.get("x-forwarded-for", "")
+        forwarded = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",") if h.strip()]
         if forwarded:
-            return forwarded.split(",")[0].strip()
+            return forwarded[-1]
     return request.client.host if request.client else "unknown"
 
 
@@ -164,8 +172,12 @@ def budget_block(state: dict) -> str | None:
 # ---------------------------------------------------------------- public endpoints
 
 @app.get("/api/health")
-def health():
-    return {"ok": True, "prices_ready": _prices_ready.is_set(), "active": len(_active)}
+def health(request: Request, forwarding: bool = False):
+    out = {"ok": True, "prices_ready": _prices_ready.is_set(), "active": len(_active)}
+    if forwarding:   # shows the caller their own forwarding header, to check client_ip() on a deployment
+        out["x_forwarded_for"] = request.headers.get("x-forwarded-for")
+        out["client_ip"] = client_ip(request)
+    return out
 
 
 @app.get("/api/i18n")
@@ -246,6 +258,8 @@ def chat(body: ChatIn, request: Request):
     with _active_lock:
         if body.session_id in _active:
             return JSONResponse({"error": "busy"}, status_code=409)
+        if len(_active) >= MAX_CONCURRENT_CHATS:
+            return JSONResponse({"error": "at_capacity"}, status_code=503)
         _active.add(body.session_id)
     visitor_prefs = prefs.MemoryStore([p[:200] for p in body.prefs])
     scope = known_stores(body.stores)
@@ -339,7 +353,7 @@ def admin_login(body: LoginIn, request: Request):
     code = settings.get("ADMIN_CODE")
     if not code:
         raise HTTPException(403, "Admin is disabled: no ADMIN_CODE is configured.")
-    if not admin_limiter.allow(client_ip(request)):
+    if not (admin_limiter.allow(client_ip(request)) and admin_global_limiter.allow("all")):
         raise HTTPException(429, "Too many attempts; wait a few minutes.")
     if not hmac.compare_digest(body.code.strip().encode(), code.encode()):
         raise HTTPException(401, "That code is not right.")

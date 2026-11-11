@@ -109,6 +109,11 @@ Claude Desktop 的配置写法见英文 README。第一次启动会下载当天�
 共 133 个测试：规格解析、包装组合与折扣计算、单店/两店比价、搜索排序、ID 稳定性、
 折扣存储（SQLite 和真实 Postgres）、模拟 API 下的 agent 循环、无头运行的 Streamlit 界面测试。
 
+## 安全
+
+已按 OWASP LLM 应用十大风险（2026 年 11 月）做过一次检查，发现的问题、修复和接受的风险见
+[`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md)。
+
 ## 已知局限 / 下一步
 
 - **折扣需要手动导入**：现在靠上传传单或粘贴文字。全自动方案可以接入 AH/Jumbo 的非官方接口，但这违反服务条款的风险较高，只适合个人低频使用。

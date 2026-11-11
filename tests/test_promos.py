@@ -108,3 +108,12 @@ def test_reimport_with_corrected_dates_replaces_the_old_week(tmp_path):
     # next week's folder with the same deal does not overlap: both are kept
     promos.add(con, "dirk", P(), [1], "2026-10-28", "2026-11-03", "next week")
     assert len(promos.list_all(con)) == 2
+
+
+def test_imported_text_is_stored_at_a_sane_length(tmp_path):
+    engine = promos.connect(f"sqlite:///{tmp_path / 'p.db'}")
+    p = promos.ExtractedPromo(title="Kip " + "x" * 5000, label="1+1 gratis " + "y" * 500, kind="other",
+                              search_query="kip")
+    promos.add(engine, "ah", p, [], None, None, "test")
+    saved = promos.list_all(engine)[0]
+    assert len(saved["title"]) == promos.MAX_TITLE and len(saved["label"]) == promos.MAX_LABEL

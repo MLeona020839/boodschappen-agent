@@ -377,3 +377,42 @@ def test_admin_import_uses_its_own_budget(api, monkeypatch):
     monkeypatch.setattr(quota, "import_remaining_eur", lambda: 0.0)
     r = c.post("/api/admin/import", headers=auth, data={"store": "ah", "text": "Kipfilet 2+1 gratis"})
     assert r.status_code == 429 and "import budget" in r.json()["detail"]
+
+
+# ---------------------------------------------------------------- security review (OWASP LLM Top 10)
+
+def test_client_ip_ignores_what_the_client_puts_in_front(api, monkeypatch):
+    monkeypatch.setenv("TRUST_PROXY", "1")
+    c = TestClient(api.app)
+    r = c.get("/api/health", params={"forwarding": 1}, headers={"X-Forwarded-For": "203.0.113.7, 198.51.100.20"})
+    assert r.json()["client_ip"] == "198.51.100.20"   # the entry the proxy appended
+    assert "x_forwarded_for" not in c.get("/api/health").json()
+
+
+def test_forged_addresses_do_not_get_fresh_rate_limits(api, monkeypatch):
+    monkeypatch.setenv("TRUST_PROXY", "1")
+    monkeypatch.setattr(api, "search_limiter", api.RateLimiter([(2, 60)]))
+    c = TestClient(api.app)
+    codes = [c.get("/api/compare", params={"q": "melk"},
+                   headers={"X-Forwarded-For": f"203.0.113.{i}, 198.51.100.20"}).status_code for i in range(3)]
+    assert codes == [200, 200, 429]
+
+
+def test_admin_login_has_a_limit_for_all_addresses_together(api, monkeypatch):
+    monkeypatch.setenv("ADMIN_CODE", "owner-123")
+    monkeypatch.setattr(api, "admin_global_limiter", api.RateLimiter([(3, 3600)]))
+    c = TestClient(api.app)
+    codes = [c.post("/api/admin/login", json={"code": "guess"},
+                    headers={"X-Forwarded-For": f"203.0.113.{i}"}).status_code for i in range(4)]
+    assert codes == [401, 401, 401, 429]
+
+
+def test_chat_refuses_when_too_many_run_at_once(api, monkeypatch):
+    monkeypatch.setattr(api, "client", lambda: object())
+    monkeypatch.setattr(api, "MAX_CONCURRENT_CHATS", 1)
+    api._active.add("someoneelse123")
+    try:
+        r = TestClient(api.app).post("/api/chat", json={"session_id": "abc123abc123", "message": "hoi"})
+        assert r.status_code == 503 and r.json()["error"] == "at_capacity"
+    finally:
+        api._active.discard("someoneelse123")

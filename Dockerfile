@@ -1,8 +1,9 @@
 FROM python:3.12-slim
 
 WORKDIR /app
-COPY requirements-api.txt .
-RUN pip install --no-cache-dir -r requirements-api.txt
+COPY requirements-api.txt requirements-api.lock ./
+# Exact versions, so a deploy runs what the tests ran (requirements-api.txt lists the direct ones).
+RUN pip install --no-cache-dir -r requirements-api.lock
 
 COPY grocery_agent grocery_agent
 COPY api api

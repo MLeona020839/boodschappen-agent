@@ -410,7 +410,7 @@ function compareRow(s, cheapest, unit) {
   head.append(price);
   const name = document.createElement("div");
   name.className = "name";
-  if (b.url) { const a = document.createElement("a"); a.href = b.url; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = b.name; name.append(a); }
+  if (b.url && /^https:\/\//i.test(b.url)) { const a = document.createElement("a"); a.href = b.url; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = b.name; name.append(a); }
   else name.textContent = b.name;
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -563,7 +563,8 @@ async function send(text) {
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
       if (data.budget && state) { state.budget = data.budget; renderBudget(data.budget); }
-      error = { 429: data.error === "rate_limited" ? t("web_rate_limited") : null, 409: t("web_busy"), 503: t("web_unavailable") }[r.status]
+      error = { 429: data.error === "rate_limited" ? t("web_rate_limited") : null, 409: t("web_busy"),
+                503: data.error === "at_capacity" ? t("web_at_capacity") : t("web_unavailable") }[r.status]
         || (data.error === "day_exhausted" ? t("day_exhausted", { total: data.budget?.day_total })
           : data.error === "session_exhausted" ? t("session_exhausted", { session: data.budget?.session_total })
           : t("err_server"));
